@@ -1,0 +1,12 @@
+**/*.log
+**/node_modules
+.coverage
+.nyc_output
+coverage/
+docs/
+out/
+config.yaml
+build
+.vscode
+package-lock.json
+__pycache__
