@@ -15,7 +15,8 @@ async function main() {
         .getRepositories()
         .then(repos => repos.forEach(r => r.git
             .stage('master')
-            .moveFile('folder/next.txt', 'folder/next_new.txt')
+            .moveFile('folder', 'folder2')
+            .addFile('folder2/testingfile.txt', 'test')
             .commit('A nice commit message here')
         ))
         .catch(console.error);

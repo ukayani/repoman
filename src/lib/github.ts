@@ -103,7 +103,7 @@ interface ChangeMap {
 }
 
 interface ChangeApplicator {
-    (changes: ChangeMap): ChangeMap
+    (changes: ChangeMap): Promise<ChangeMap>
 }
 
 export class Stage {
@@ -118,16 +118,17 @@ export class Stage {
     }
 
     public addFile(path: string, content: string, mode: '100644' | '100755' = '100644'): Stage {
-        this.#changes.push(changes => {
-            changes[path] = {path, content, mode, type: 'blob'};
-            return changes;
+        this.#changes.push(async changes => {
+            const cloned = {...changes};
+            cloned[path] = {path, content, mode, type: 'blob'};
+            return cloned;
         });
 
         return this;
     }
 
     public deleteFile(path: string): Stage {
-        this.#changes.push(changes => {
+        this.#changes.push(async changes => {
             let cloned = {...changes};
             delete cloned[path];
             return cloned;
@@ -137,7 +138,7 @@ export class Stage {
     }
 
     public deleteFolder(path: string): Stage {
-        this.#changes.push(changes => {
+        this.#changes.push(async changes => {
             let cloned = {...changes};
             delete cloned[path];
             Object.keys(cloned).filter(k => k.startsWith(path + '/')).forEach(k => {
@@ -150,7 +151,7 @@ export class Stage {
     }
 
     public moveFile(src: string, dest: string): Stage {
-        this.#changes.push(changes => {
+        this.#changes.push(async changes => {
             const cloned = {...changes};
             if (src in cloned) {
                 const change = cloned[src];
@@ -186,11 +187,12 @@ export class Stage {
             return acc;
         }, {} as ChangeMap);
 
-        const finalChanges = this.#changes.reduce((acc, applyChange) => {
-            return applyChange(acc);
-        }, changes);
+        const finalChanges = this.#changes.reduce(async (changesPromise, applyChange) => {
+            const changes = await changesPromise;
+            return await applyChange(changes);
+        }, Promise.resolve(changes));
 
-        console.log(finalChanges);
+        console.log(await finalChanges);
         //console.log(changes);
         return latestCommit;
     }
