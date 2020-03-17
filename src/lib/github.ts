@@ -182,19 +182,18 @@ export class Stage {
             throw new Error("Unable to retrieve all objects for current tree");
         }
 
-        const changes = latestTree.tree.reduce((acc, obj) => {
+        const existingChangesMap = latestTree.tree.reduce((acc, obj) => {
             acc[obj.path] = obj;
             return acc;
         }, {} as ChangeMap);
 
-        const finalChanges = this.#changes.reduce(async (changesPromise, applyChange) => {
+        const finalChangesMap = await this.#changes.reduce(async (changesPromise, applyChange) => {
             const changes = await changesPromise;
             return await applyChange(changes);
-        }, Promise.resolve(changes));
+        }, Promise.resolve(existingChangesMap));
 
-        console.log(await finalChanges);
-        //console.log(changes);
-        return latestCommit;
+        const finalChanges = Object.keys(finalChangesMap).map(k => finalChangesMap[k]);
+        return this.#repository.createCommit(this.#branch, message, finalChanges, false);
     }
 }
 
