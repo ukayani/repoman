@@ -13,7 +13,11 @@ async function main() {
 
     github
         .getRepositories()
-        .then(repos => repos.forEach(console.log))
+        .then(repos => repos.forEach(r => r.git
+            .stage('master')
+            .moveFile('folder/next.txt', 'folder/next_new.txt')
+            .commit('A nice commit message here')
+        ))
         .catch(console.error);
 }
 

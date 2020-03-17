@@ -18,6 +18,7 @@
 
 import axios, {AxiosInstance} from 'axios';
 import {Config} from './config';
+import {createGunzip} from "zlib";
 
 function getClient(config: Config) {
     return axios.create({
@@ -97,10 +98,18 @@ export class GitHub {
     }
 }
 
+interface ChangeMap {
+    [path: string]: Change;
+}
+
+interface ChangeApplicator {
+    (changes: ChangeMap): ChangeMap
+}
+
 export class Stage {
     readonly #repository: Repository;
     readonly #branch: string;
-    readonly #changes: Change[];
+    readonly #changes: ChangeApplicator[];
 
     constructor(repository: Repository, branch: string) {
         this.#repository = repository;
@@ -109,20 +118,82 @@ export class Stage {
     }
 
     public addFile(path: string, content: string, mode: '100644' | '100755' = '100644'): Stage {
-        this.#changes.push({path, content, mode, type: 'blob'});
+        this.#changes.push(changes => {
+            changes[path] = {path, content, mode, type: 'blob'};
+            return changes;
+        });
+
         return this;
     }
 
     public deleteFile(path: string): Stage {
-        this.#changes.push({path, mode: '100644', type: 'blob', sha: null});
+        this.#changes.push(changes => {
+            let cloned = {...changes};
+            delete cloned[path];
+            return cloned;
+        });
+
         return this;
     }
 
     public deleteFolder(path: string): Stage {
-        this.#changes.push({path, mode: '040000', type: 'tree', sha: null});
+        this.#changes.push(changes => {
+            let cloned = {...changes};
+            delete cloned[path];
+            Object.keys(cloned).filter(k => k.startsWith(path + '/')).forEach(k => {
+                delete cloned[k];
+            });
+            return cloned;
+        });
+
         return this;
     }
 
+    public moveFile(src: string, dest: string): Stage {
+        this.#changes.push(changes => {
+            const cloned = {...changes};
+            if (src in cloned) {
+                const change = cloned[src];
+                delete cloned[src];
+                change.path = dest;
+                cloned[dest] = change;
+
+                if (change.type === 'tree') {
+                    Object.keys(cloned).filter(k => k.startsWith(src + '/')).forEach(k => {
+                        const existing = cloned[k];
+                        delete cloned[k];
+                        const newPath = k.replace(new RegExp("^" + src), dest);
+                        existing.path = newPath;
+                        cloned[newPath] = existing;
+                    });
+                }
+            }
+            return cloned;
+        });
+        return this;
+    }
+
+    public async commit(message: string): Promise<Commit> {
+        const latestCommit = await this.#repository.getLatestCommitToBranch(this.#branch);
+        const latestTree = await this.#repository.getTree(latestCommit);
+
+        if (latestTree.truncated) {
+            throw new Error("Unable to retrieve all objects for current tree");
+        }
+
+        const changes = latestTree.tree.reduce((acc, obj) => {
+            acc[obj.path] = obj;
+            return acc;
+        }, {} as ChangeMap);
+
+        const finalChanges = this.#changes.reduce((acc, applyChange) => {
+            return applyChange(acc);
+        }, changes);
+
+        console.log(finalChanges);
+        //console.log(changes);
+        return latestCommit;
+    }
 }
 
 /**
@@ -157,6 +228,10 @@ export class GitHubRepository {
 
     get organization(): string {
         return this.#repository.organization;
+    }
+
+    get git(): Repository {
+        return this.#repository;
     }
 
     /**
@@ -458,34 +533,31 @@ export class Repository {
         return res.data;
     }
 
-    async getTree(commit: Commit) {
+    async getTree(commit: Commit, recursive: boolean = true): Promise<Tree> {
         const treeSha = commit.tree.sha;
-        const url = `${this.repoUrl}/git/trees/${treeSha}?recursive=true`;
+        return await this.getTreeFromSha(treeSha, recursive);
+    }
 
-        const result = await this.#client.get(url);
+    async getTreeFromSha(sha: string, recursive: boolean = true): Promise<Tree> {
+        const url = `${this.repoUrl}/git/trees/${sha}?recursive=${recursive.toString()}`;
+
+        const result = await this.#client.get<Tree>(url);
         return result.data;
     }
 
-    async getTreeFromSha(sha: string) {
-        const url = `${this.repoUrl}/git/trees/${sha}?recursive=true`;
-
-        const result = await this.#client.get(url);
-        return result.data;
-    }
-
-    async createTree(base: string, changes: Change[]) {
+    async createTree(changes: Change[], base?: string): Promise<Tree> {
         const url = `${this.repoUrl}/git/trees`;
-
-        const res = await this.#client.post(url, {
-            base_tree: base, tree: changes
-        });
+        type CreateTree = { base_tree?: string, tree: Change[] };
+        const createBody: CreateTree = (base) ? {base_tree: base, tree: changes} : {tree: changes};
+        const res = await this.#client.post(url, createBody);
 
         return res.data;
     }
 
-    async createCommit(branch: string, message: string, changes: Change[]) {
+    async createCommit(branch: string, message: string, changes: Change[], delta: boolean = true) {
         const latestCommit = await this.getLatestCommitToBranch(branch);
-        const tree = await this.createTree(latestCommit.tree.sha, changes);
+
+        const tree = (delta) ? await this.createTree(changes, latestCommit.tree.sha) : await this.createTree(changes);
 
         const url = `${this.repoUrl}/git/commits`;
         const {data: commit} = await this.#client.post<Commit>(url, {
@@ -590,6 +662,22 @@ export interface Branch {
 export interface Object {
     type: string;
     sha: string;
+    url: string;
+}
+
+export interface Tree {
+    sha: string;
+    url: string;
+    tree: TreeObject[];
+    truncated: boolean;
+}
+
+export interface TreeObject {
+    path: string;
+    mode: string;
+    type: string;
+    sha: string;
+    size: number;
     url: string;
 }
 
