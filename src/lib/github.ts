@@ -98,6 +98,7 @@ export class GitHub {
     }
 }
 
+// todo: use a map instead
 interface ChangeMap {
     [path: string]: Change;
 }
@@ -521,16 +522,22 @@ export class Repository {
         return new Stage(this, branch);
     }
 
-    async createBlob(content: string): Promise<Object> {
+    async createBlob(content: Buffer): Promise<Object> {
         const url = `${this.repoUrl}/git/blobs`;
-        const base64Content = Buffer.from(content).toString('base64');
+        const base64Content = content.toString('base64');
         const res = await this.#client.post<Object>(url, {content: base64Content, encoding: 'base64'});
         res.data.type = 'blob';
         return res.data;
     }
 
-    async getBlob(url: string): Promise<string> {
-        const res = await this.#client.get(url, {headers: {accept: 'application/vnd.github.VERSION.raw'}});
+    async getBlob(url: string): Promise<Buffer> {
+        const res = await this.#client.get<Buffer>(url, {
+            transformResponse:
+                    res => {
+                        const parsed = JSON.parse(res);
+                        return Buffer.from(parsed.content, 'base64');
+                    }
+        });
         return res.data;
     }
 
@@ -544,6 +551,27 @@ export class Repository {
 
         const result = await this.#client.get<Tree>(url);
         return result.data;
+    }
+
+    async fetchBranch(branch: string, writer: (path: string, mode: string, content: Buffer) => Promise<void>): Promise<void> {
+        const latestCommit = await this.getLatestCommitToBranch(branch);
+        return await this.fetch(latestCommit, writer);
+    }
+
+    async fetch(commit: Commit, writer: (path: string, mode: string, content: Buffer) => Promise<void>): Promise<void> {
+        const tree = await this.getTree(commit);
+        if (tree.truncated) {
+            throw new Error('unable to fetch entire tree.');
+        }
+
+        const fileWriterPromises = tree.tree
+            .filter(obj => obj.type === 'blob')
+            .map(async (obj) => {
+                const data = await this.getBlob(obj.url);
+                await writer(obj.path, obj.mode, data);
+            });
+
+        await Promise.all(fileWriterPromises);
     }
 
     async createTree(changes: Change[], base?: string): Promise<Tree> {
