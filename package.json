@@ -17,10 +17,12 @@
     "chalk": "^3.0.0",
     "command-line-usage": "^6.0.0",
     "js-yaml": "^3.13.1",
-    "meow": "^6.0.0"
+    "meow": "^6.0.0",
+    "minimatch": "^3.0.4"
   },
   "devDependencies": {
     "@types/js-yaml": "^3.12.1",
+    "@types/minimatch": "^3.0.3",
     "@types/mocha": "^7.0.0",
     "@types/nock": "^10.0.3",
     "@types/node": "^12.0.7",

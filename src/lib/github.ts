@@ -18,7 +18,14 @@
 
 import axios, {AxiosInstance} from 'axios';
 import {Config} from './config';
-import {createGunzip} from "zlib";
+import * as fs from 'fs';
+import * as p from 'path';
+import {Minimatch} from 'minimatch';
+import {promisify} from 'util';
+const readFile = promisify(fs.readFile);
+const writeFile = promisify(fs.writeFile);
+const mkDir = promisify(fs.mkdir);
+
 
 function getClient(config: Config) {
     return axios.create({
@@ -553,6 +560,34 @@ export class Repository {
         return result.data;
     }
 
+    private failIfTruncated(tree: Tree) {
+        if (tree.truncated) {
+            throw new Error('unable to fetch entire tree.');
+        }
+    }
+    async getMatchingFiles(branch: string, pattern: string): Promise<File[]> {
+        const latestCommit = await this.getLatestCommitToBranch(branch);
+        const tree = await this.getTree(latestCommit);
+
+        this.failIfTruncated(tree);
+
+        const mm = new Minimatch(pattern);
+        return tree.tree
+            .filter(to => (to.type === 'blob' || to.type === 'tree') && mm.match(to.path))
+            .map(to => ({type: to.type, size: to.size, sha: to.sha, path: to.path, name: p.basename(to.path), url: to.url}));
+    }
+
+    async getMatchingFilesWithContent(branch: string, pattern: string): Promise<File[]> {
+        const matchingFiles = await this.getMatchingFiles(branch, pattern);
+
+        const filesPromise = matchingFiles.map(async f => {
+            f.content = await this.getBlob(f.url);
+            return f;
+        });
+
+        return await Promise.all(filesPromise);
+    }
+
     async fetchBranch(branch: string, writer: (path: string, mode: string, content: Buffer) => Promise<void>): Promise<void> {
         const latestCommit = await this.getLatestCommitToBranch(branch);
         return await this.fetch(latestCommit, writer);
@@ -560,9 +595,8 @@ export class Repository {
 
     async fetch(commit: Commit, writer: (path: string, mode: string, content: Buffer) => Promise<void>): Promise<void> {
         const tree = await this.getTree(commit);
-        if (tree.truncated) {
-            throw new Error('unable to fetch entire tree.');
-        }
+
+        this.failIfTruncated(tree);
 
         const fileWriterPromises = tree.tree
             .filter(obj => obj.type === 'blob')
@@ -664,17 +698,12 @@ export interface Branches {
 
 export interface File {
     type: string;
-    encoding: string;
     size: number;
     name: string;
     path: string;
-    content: string;
+    content?: Buffer;
     sha: string;
     url: string;
-    git_url: string;
-    html_url: string;
-    download_url: string;
-    _links: { git: string; self: string; html: string };
 }
 
 export interface StatusCheck {
@@ -739,4 +768,14 @@ export interface Change {
     path: string;
     mode: string;
     type: string;
+}
+
+export function toDir(dir: string): (path: string, mode: string, content: Buffer) => Promise<void> {
+    return async (path, mode, content) => {
+        const filePath = p.normalize(p.join(dir, path));
+        const fileDir = p.dirname(filePath);
+        await mkDir(fileDir, {recursive: true});
+        const unixMode = (mode === '100644') ? 0o644: 0o755;
+        await writeFile(filePath, content, {mode: unixMode});
+    }
 }
