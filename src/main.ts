@@ -1,5 +1,6 @@
 import {getConfig} from './lib/config';
-import {GitHub, GitHubRepository, toDir} from './lib/github';
+import {GitHub} from './lib/github';
+import {ObjectMode} from "./lib/github/repository";
 
 async function main() {
     const config = await getConfig();
@@ -8,9 +9,10 @@ async function main() {
     github
         .getRepositories()
         .then(repos => repos.forEach(async r => r.git
-            .getMatchingFilesWithContent('master', 'test/*.spec.js')
+            .stage('master')
+            .addFile('new/test.txt', 'hello world')
+            .commit('testing impl')
             .then(console.log)
-
         ))
         .catch(console.error);
 }
