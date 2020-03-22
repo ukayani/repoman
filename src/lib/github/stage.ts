@@ -1,4 +1,5 @@
 import {Change, Commit, ObjectMode, ObjectType, Repository} from "./repository";
+import {LocalFile} from "./filesystem";
 
 // todo: use a map instead
 interface ChangeMap {
@@ -20,10 +21,21 @@ export class Stage {
         this.#changes = [];
     }
 
-    public addFile(path: string, content: string, mode: ObjectMode.File | ObjectMode.Executable = ObjectMode.File): Stage {
+    public addFile(path: string, content: string, mode: ObjectMode = ObjectMode.File): Stage {
         this.#changes.push(async changes => {
             const cloned = {...changes};
             cloned[path] = {path, content, mode, type: ObjectType.Blob};
+            return cloned;
+        });
+
+        return this;
+    }
+
+    public addLocalFile(path: string, file: LocalFile) {
+        this.#changes.push(async changes => {
+            const cloned = {...changes};
+            const blob = await this.#repository.createBlob(file.data);
+            cloned[path] = {path, sha: blob.sha, mode: file.mode, type: ObjectType.Blob};
             return cloned;
         });
 
