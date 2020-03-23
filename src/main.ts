@@ -8,6 +8,29 @@ async function main() {
 
     const mvn = await getFiles('./.mvn');
 
+    // repo
+    // .checkout('master', start_point?) -> if branch doesn't exist, creates one pointing to head ref of start_point, otherwise gets head ref of existing
+    // <now in branch mode>
+    // .stage()
+    // <enter stage mode>
+    // .. add files
+    // .commit(message)
+    // <exit stage mode>
+    // .stage()
+    // <enter stage mode>
+    // .. add files
+    // .commit(message)
+    // <exit stage mode>
+    // .pullRequest()
+    // <enter PR mode>
+    // .withTitle(title)
+    // .withDesc(desc)
+    // .withReviewers
+    // .withLabels
+    // .create()
+    // <exit PR mode>
+
+
     github
         .getRepositories()
         .then(repos => repos.forEach(async r => r.git
