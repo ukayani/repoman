@@ -1,24 +1,27 @@
 import {getConfig} from './lib/config';
 import {GitHub} from './lib/github';
-import {getFile} from "./lib/github/filesystem";
+import {getFiles} from "./lib/github/filesystem";
 
 async function main() {
     const config = await getConfig();
     const github = new GitHub(config);
 
-    const testsh = await getFile('./test.sh');
+    const mvn = await getFiles('./.mvn');
 
     github
         .getRepositories()
         .then(repos => repos.forEach(async r => r.git
             .stage('master')
-            .addFile('exc/other', 'Hi World!')
-            .commit('testing files')
+            .addLocalFiles(mvn)
+            .commit('adding .mvn update')
             .then(console.log)
         ))
         .catch(console.error);
 
-
+    // mvn.forEach(p => {
+    //     console.log('--------------');
+    //     console.log(p.path);
+    // });
 
 }
 

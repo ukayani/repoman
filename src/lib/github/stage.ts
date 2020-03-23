@@ -31,13 +31,16 @@ export class Stage {
         return this;
     }
 
-    public addLocalFile(path: string, file: LocalFile) {
-        this.#changes.push(async changes => {
-            const cloned = {...changes};
-            const blob = await this.#repository.createBlob(file.data);
-            cloned[path] = {path, sha: blob.sha, mode: file.mode, type: ObjectType.Blob};
-            return cloned;
-        });
+    public addLocalFiles(files: LocalFile[], basePath?: string) {
+        for (const file of files) {
+            this.#changes.push(async changes => {
+                const cloned = {...changes};
+                const filePath = (basePath) ? file.pathWithBase(basePath): file.path;
+                const blob = await this.#repository.createBlob(file.data);
+                cloned[filePath] = {path: filePath, sha: blob.sha, mode: file.mode, type: ObjectType.Blob};
+                return cloned;
+            });
+        }
 
         return this;
     }
@@ -97,7 +100,9 @@ export class Stage {
             throw new Error("Unable to retrieve all objects for current tree");
         }
 
-        const existingChangesMap = latestTree.tree.reduce((acc, obj) => {
+        const existingChangesMap = latestTree.tree
+            .filter(t => t.type !== ObjectType.Tree)
+            .reduce((acc, obj) => {
             acc[obj.path] = obj;
             return acc;
         }, {} as ChangeMap);
