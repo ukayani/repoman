@@ -1,8 +1,9 @@
-import {AxiosInstance} from "axios";
+import {AxiosError, AxiosInstance, AxiosResponse} from "axios";
 import {Minimatch} from "minimatch";
 import * as p from "path";
 import {User} from "../github";
 import {Stage} from "./stage";
+import {Checkout} from "./checkout";
 
 export class Repository {
     #client: AxiosInstance;
@@ -39,8 +40,8 @@ export class Repository {
         return `/repos/${owner}/${repo}`;
     }
 
-    public stage(branch: string): Stage {
-        return new Stage(this, branch);
+    public checkout(branch: string, startPoint?: string): Checkout {
+        return new Checkout(this, branch, startPoint);
     }
 
     async createBlob(content: Buffer): Promise<Object> {
@@ -153,11 +154,24 @@ export class Repository {
         return res.data;
     }
 
-    async getHeads(name: string): Promise<Ref> {
+    async getHeads(name: string): Promise<Ref | null> {
         const ref = `heads/${name}`;
         const refUrl = `${this.repoUrl}/git/ref/${ref}`;
-        const res = await this.#client.get<Ref>(refUrl);
+        const res = await notFoundToNull(this.#client.get<Ref>(refUrl));
         return res.data;
+    }
+
+    async createRef(name: string, sha: string) {
+        const ref = `refs/heads/${name}`;
+        const refUrl = `${this.repoUrl}/git/refs`;
+
+        const res = await this.#client.post(refUrl, {ref, sha});
+        return res.data;
+    }
+
+    async createRefFromBranch(name: string, branch: string) {
+        const commit = await this.getLatestCommitToBranch(branch);
+        return await this.createRef(name, commit.sha);
     }
 
     /**
@@ -166,6 +180,11 @@ export class Repository {
      */
     async getLatestCommitToBranch(name: string): Promise<Commit> {
         const master = await this.getHeads(name);
+
+        if (master === null) {
+            throw new Error(`No such branch ${name}`);
+        }
+
         const url = `${this.repoUrl}/git/commits/${master.object.sha}`;
 
         const result = await this.#client.get<Commit>(url);
@@ -199,6 +218,18 @@ export class Repository {
         await this.#client.delete(url);
     }
 
+}
+
+function notFoundToNull<T>(promise: Promise<AxiosResponse<T>>): Promise<AxiosResponse<T | null>> {
+    return promise.catch(err => {
+        const axiosErr = err as AxiosError;
+        if (axiosErr.response?.status === 404) {
+            axiosErr.response.data = null;
+            return axiosErr.response;
+        } else {
+            throw err;
+        }
+    });
 }
 
 export interface File {

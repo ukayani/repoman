@@ -5,6 +5,7 @@
 import axios, {AxiosInstance} from 'axios';
 import {Config} from './config';
 import {Repository} from './github/repository';
+import {Checkout} from "./github/checkout";
 
 function getClient(config: Config) {
     return axios.create({
@@ -120,6 +121,10 @@ export class GitHubRepository {
 
     get git(): Repository {
         return this.#repository;
+    }
+
+    checkout(branch: string, startPoint?: string): Checkout {
+        return this.#repository.checkout(branch, startPoint);
     }
 
     /**

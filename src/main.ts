@@ -6,7 +6,7 @@ async function main() {
     const config = await getConfig();
     const github = new GitHub(config);
 
-    const mvn = await getFiles('./.mvn');
+    //const mvn = await getFiles('./.mvn');
 
     // repo
     // .checkout('master', start_point?) -> if branch doesn't exist, creates one pointing to head ref of start_point, otherwise gets head ref of existing
@@ -33,10 +33,9 @@ async function main() {
 
     github
         .getRepositories()
-        .then(repos => repos.forEach(async r => r.git
-            .stage('master')
-            .addLocalFiles(mvn)
-            .commit('adding .mvn update')
+        .then(repos => repos.forEach(async r => r
+            .checkout("testing-branch")
+            .stage()
             .then(console.log)
         ))
         .catch(console.error);
