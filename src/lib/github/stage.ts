@@ -52,6 +52,38 @@ export class Stage {
     return this;
   }
 
+  public modifyFiles(
+    pattern: string,
+    modifier: (
+      path: string,
+      content: Buffer,
+      mode: ObjectMode
+    ) => Promise<{ content: Buffer; mode: ObjectMode }>
+  ): Stage {
+    this.#changes.push(async (changes) => {
+      const cloned = { ...changes };
+      const files = await this.#repository.getMatchingFilesWithContent(
+        this.#branch,
+        pattern
+      );
+      for (const file of files) {
+        if (file.content) {
+          const modified = await modifier(file.path, file.content, file.mode);
+          const newBlob = await this.#repository.createBlob(modified.content);
+          cloned[file.path] = {
+            path: file.path,
+            sha: newBlob.sha,
+            mode: modified.mode,
+            type: ObjectType.Blob,
+          };
+        }
+      }
+      return cloned;
+    });
+
+    return this;
+  }
+
   public deleteFile(path: string): Stage {
     this.#changes.push(async (changes) => {
       const cloned = { ...changes };

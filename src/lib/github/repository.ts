@@ -99,7 +99,8 @@ export class Repository {
 
     this.failIfTruncated(tree);
 
-    const mm = new Minimatch(pattern);
+    const mm = new Minimatch(pattern, { matchBase: true });
+
     return tree.tree
       .filter(
         (to) =>
@@ -111,6 +112,7 @@ export class Repository {
         size: to.size,
         sha: to.sha,
         path: to.path,
+        mode: to.mode,
         name: p.basename(to.path),
         url: to.url,
       }));
@@ -263,6 +265,7 @@ export interface File {
   size: number;
   name: string;
   path: string;
+  mode: ObjectMode;
   content?: Buffer;
   sha: string;
   url: string;
