@@ -1,10 +1,4 @@
-import {
-  Change,
-  Commit,
-  ObjectMode,
-  ObjectType,
-  Repository,
-} from "./repository";
+import { Change, ObjectMode, ObjectType, Ref, Repository } from "./repository";
 import { LocalFile } from "./filesystem";
 
 // use a map instead
@@ -109,7 +103,7 @@ export class Stage {
     return this;
   }
 
-  public async commit(message: string): Promise<Commit> {
+  public async commit(message: string): Promise<Ref> {
     const latestCommit = await this.#repository.getLatestCommitToBranch(
       this.#branch
     );
