@@ -50,13 +50,15 @@ export class Repository {
     return new Checkout(this, branch, startPoint);
   }
 
-  async createBlob(content: Buffer): Promise<Blob> {
+  async createBlob(content: Buffer): Promise<GitObject> {
     const url = `${this.repoUrl}/git/blobs`;
     const base64Content = content.toString("base64");
-    const res = await this.#client.post<Blob>(url, {
+    const res = await this.#client.post<GitObject>(url, {
       content: base64Content,
       encoding: "base64",
     });
+
+    res.data.type = ObjectType.Blob;
 
     return res.data;
   }
@@ -181,47 +183,57 @@ export class Repository {
       message,
     });
 
-    return await this.updateHeadRef(branch, commit.sha);
+    return await this.updateBranch(branch, commit.sha);
   }
 
-  async updateHeadRef(name: string, sha: string): Promise<Ref> {
+  async updateBranch(name: string, sha: string): Promise<Ref> {
     const url = `${this.repoUrl}/git/refs/heads/${name}`;
     const res = await this.#client.patch<Ref>(url, { sha });
     return res.data;
   }
 
-  async getHeads(name: string): Promise<Ref | null> {
+  async getBranch(name: string): Promise<Ref | null> {
     const ref = `heads/${name}`;
     const refUrl = `${this.repoUrl}/git/ref/${ref}`;
     const res = await notFoundToNull(this.#client.get<Ref>(refUrl));
     return res.data;
   }
 
-  async createRef(name: string, sha: string) {
+  async createBranchFromSha(name: string, sha: string): Promise<Ref> {
     const ref = `refs/heads/${name}`;
     const refUrl = `${this.repoUrl}/git/refs`;
 
-    const res = await this.#client.post(refUrl, { ref, sha });
+    const res = await this.#client.post<Ref>(refUrl, { ref, sha });
     return res.data;
   }
 
-  async createRefFromBranch(name: string, branch: string) {
+  async createBranch(name: string, branch: string): Promise<Ref> {
     const commit = await this.getLatestCommitToBranch(branch);
-    return await this.createRef(name, commit.sha);
+    return await this.createBranchFromSha(name, commit.sha);
   }
 
   /**
-   * Returns latest commit to master branch of the GitHub repository.
-   * @returns {Object} Commit object, as returned by GitHub API.
+   * Deletes the given branch.
+   * @param {string} branch Name of the branch.
    */
-  async getLatestCommitToBranch(name: string): Promise<Commit> {
-    const master = await this.getHeads(name);
+  async deleteBranch(branch: string): Promise<void> {
+    const ref = `heads/${branch}`;
+    const url = `${this.repoUrl}/git/refs/${ref}`;
+    await this.#client.delete(url);
+  }
 
-    if (master === null) {
-      throw new Error(`No such branch ${name}`);
+  /**
+   * Returns latest commit to branch of the GitHub repository.
+   * @returns {GitObject} Commit object, as returned by GitHub API.
+   */
+  async getLatestCommitToBranch(branch: string): Promise<Commit> {
+    const branchRef = await this.getBranch(branch);
+
+    if (branchRef === null) {
+      throw new Error(`No such branch ${branch}`);
     }
 
-    const url = `${this.repoUrl}/git/commits/${master.object.sha}`;
+    const url = `${this.repoUrl}/git/commits/${branchRef.object.sha}`;
 
     const result = await this.#client.get<Commit>(url);
     return result.data;
@@ -229,29 +241,6 @@ export class Repository {
 
   async getLatestCommitToMaster(): Promise<Commit> {
     return await this.getLatestCommitToBranch("master");
-  }
-
-  /**
-   * Creates a new branch in the given GitHub repository.
-   * @param {string} branch Name of the new branch.
-   * @param {string} sha SHA of the master commit to base the branch on.
-   * @returns {Object} Reference object, as returned by GitHub API.
-   */
-  async createBranch(branch: string, sha: string) {
-    const ref = `refs/heads/${branch}`;
-    const url = `${this.repoUrl}/git/refs`;
-    const result = await this.#client.post(url, { ref, sha });
-    return result.data;
-  }
-
-  /**
-   * Deletes the given branch.
-   * @param {string} branch Name of the branch.
-   */
-  async deleteBranch(branch: string) {
-    const ref = `heads/${branch}`;
-    const url = `${this.repoUrl}/git/refs/${ref}`;
-    await this.#client.delete(url);
   }
 }
 
@@ -293,13 +282,8 @@ export enum ObjectMode {
   Symlink = "120000",
 }
 
-export interface Blob {
-  sha: string;
-  url: string;
-}
-
-export interface Object {
-  type: string;
+export interface GitObject {
+  type: ObjectType;
   sha: string;
   url: string;
 }
@@ -324,7 +308,7 @@ export interface Ref {
   ref: string;
   node_id: string;
   url: string;
-  object: Record<string, any>;
+  object: GitObject;
 }
 
 export interface Commit {
@@ -333,8 +317,8 @@ export interface Commit {
   author: CommitUser;
   committer: CommitUser;
   message: string;
-  tree: Record<string, any>;
-  parents: Record<string, any>[];
+  tree: GitObject;
+  parents: GitObject[];
 }
 
 export interface CommitUser {
