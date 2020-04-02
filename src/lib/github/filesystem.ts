@@ -15,7 +15,7 @@ function toUnixMode(mode: ObjectMode): number {
 }
 
 export function toDir(dir: string): GitObjectWriter {
-  return async (path, mode, content) => {
+  return async (path, mode, content): Promise<void> => {
     const filePath = p.normalize(p.join(dir, path));
     const fileDir = p.dirname(filePath);
     await mkDir(fileDir, { recursive: true });

@@ -21,8 +21,9 @@ export async function getConfig(configFilename?: string): Promise<Config> {
     filename = "./config.yaml";
   }
 
-  if (cache.has(filename)) {
-    return cache.get(filename)!;
+  const cached = cache.get(filename);
+  if (cached !== undefined) {
+    return cached;
   }
 
   try {

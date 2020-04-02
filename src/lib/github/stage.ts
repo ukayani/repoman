@@ -7,10 +7,8 @@ import {
 } from "./repository";
 import { LocalFile } from "./filesystem";
 
-// todo: use a map instead
-interface ChangeMap {
-  [path: string]: Change;
-}
+// use a map instead
+type ChangeMap = Record<string, Change>;
 
 interface ChangeApplicator {
   (changes: ChangeMap): Promise<ChangeMap>;
@@ -41,7 +39,7 @@ export class Stage {
     return this;
   }
 
-  public addLocalFiles(files: LocalFile[], basePath?: string) {
+  public addLocalFiles(files: LocalFile[], basePath?: string): Stage {
     for (const file of files) {
       this.#changes.push(async (changes) => {
         const cloned = { ...changes };

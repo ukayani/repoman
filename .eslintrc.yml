@@ -17,3 +17,4 @@ rules:
   no-warning-comments: warn
   no-var: error
   prefer-const: error
+  '@typescript-eslint/no-use-before-define': off

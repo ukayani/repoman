@@ -240,10 +240,12 @@ export class GitHubRepository {
   async mergePullRequest(pr: PullRequest) {
     const title = pr.title;
     const url = `${this.repoUrl}/pulls/${pr.number}/merge`;
+    /* eslint-disable @typescript-eslint/camelcase */
     const result = await this.#client.put(url, {
       merge_method: "squash",
       commit_title: title,
     });
+    /* eslint-enable @typescript-eslint/camelcase */
     return result.data;
   }
 

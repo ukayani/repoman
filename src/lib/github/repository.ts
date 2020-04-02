@@ -2,30 +2,29 @@ import { AxiosError, AxiosInstance, AxiosResponse } from "axios";
 import { Minimatch } from "minimatch";
 import * as p from "path";
 import { User } from "../github";
-import { Stage } from "./stage";
 import { Checkout } from "./checkout";
 
 export class Repository {
   #client: AxiosInstance;
   #name: string;
   #owner: User;
-  #clone_url?: string;
-  #ssh_url?: string;
+  #cloneUrl?: string;
+  #sshUrl?: string;
   #archived?: boolean;
 
   constructor(
     client: AxiosInstance,
     name: string,
     owner: User,
-    clone_url: string,
-    ssh_url: string,
+    cloneUrl: string,
+    sshUrl: string,
     archived: boolean
   ) {
     this.#name = name;
     this.#owner = owner;
-    this.#clone_url = clone_url;
+    this.#cloneUrl = cloneUrl;
     this.#archived = archived;
-    this.#ssh_url = ssh_url;
+    this.#sshUrl = sshUrl;
     this.#client = client;
   }
 
@@ -51,14 +50,14 @@ export class Repository {
     return new Checkout(this, branch, startPoint);
   }
 
-  async createBlob(content: Buffer): Promise<Record<string, any>> {
+  async createBlob(content: Buffer): Promise<Blob> {
     const url = `${this.repoUrl}/git/blobs`;
     const base64Content = content.toString("base64");
-    const res = await this.#client.post<Record<string, any>>(url, {
+    const res = await this.#client.post<Blob>(url, {
       content: base64Content,
       encoding: "base64",
     });
-    res.data.type = "blob";
+
     return res.data;
   }
 
@@ -86,7 +85,7 @@ export class Repository {
     return result.data;
   }
 
-  private failIfTruncated(tree: Tree) {
+  private failIfTruncated(tree: Tree): void {
     if (tree.truncated) {
       throw new Error("unable to fetch entire tree.");
     }
@@ -152,9 +151,12 @@ export class Repository {
   async createTree(changes: Change[], base?: string): Promise<Tree> {
     const url = `${this.repoUrl}/git/trees`;
     type CreateTree = { base_tree?: string; tree: Change[] };
+
+    /* eslint-disable @typescript-eslint/camelcase */
     const createBody: CreateTree = base
       ? { base_tree: base, tree: changes }
       : { tree: changes };
+    /* eslint-enable @typescript-eslint/camelcase */
     const res = await this.#client.post(url, createBody);
 
     return res.data;
@@ -165,7 +167,7 @@ export class Repository {
     message: string,
     changes: Change[],
     delta = true
-  ) {
+  ): Promise<Ref> {
     const latestCommit = await this.getLatestCommitToBranch(branch);
 
     const tree = delta
@@ -182,9 +184,9 @@ export class Repository {
     return await this.updateHeadRef(branch, commit.sha);
   }
 
-  async updateHeadRef(name: string, sha: string) {
+  async updateHeadRef(name: string, sha: string): Promise<Ref> {
     const url = `${this.repoUrl}/git/refs/heads/${name}`;
-    const res = await this.#client.patch(url, { sha });
+    const res = await this.#client.patch<Ref>(url, { sha });
     return res.data;
   }
 
@@ -289,6 +291,11 @@ export enum ObjectMode {
   Directory = "040000",
   Submodule = "160000",
   Symlink = "120000",
+}
+
+export interface Blob {
+  sha: string;
+  url: string;
 }
 
 export interface Object {

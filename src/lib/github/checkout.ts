@@ -1,6 +1,5 @@
 import { Repository } from "./repository";
 import { Stage } from "./stage";
-import { AxiosError } from "axios";
 
 export class Checkout {
   readonly #repository: Repository;
