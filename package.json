@@ -39,7 +39,6 @@
   "scripts": {
     "lint": "npm run check && eslint '**/*.ts'",
     "test": "c8 mocha build/test",
-    "check": "gts check",
     "clean": "gts clean",
     "compile": "tsc -p .",
     "watch": "tsc -w -p .",
