@@ -378,4 +378,5 @@ export class GitHub {
   }
 }
 
-export { toDir as DirectoryWriter } from "./github/filesystem";
+export { toDir as DirectoryWriter, getFiles, LocalFile } from "./github/filesystem";
+
