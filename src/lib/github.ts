@@ -3,7 +3,7 @@
  */
 
 import axios, { AxiosInstance } from "axios";
-import { Repository } from "./github/repository";
+import { Commit, Repository } from "./github/repository";
 import { Checkout } from "./github/checkout";
 
 function createClient(token: string): AxiosInstance {
@@ -64,7 +64,9 @@ export class GitHubRepository {
    * @param {string} state Pull request state (open, closed), defaults to open.
    * @returns {Object[]} Pull request objects, as returned by GitHub API.
    */
-  async listPullRequests(state: "open" | "closed" | "all" = "open") {
+  async listPullRequests(
+    state: "open" | "closed" | "all" = "open"
+  ): Promise<PullRequest[]> {
     const prs: PullRequest[] = [];
     const url = `${this.repoUrl}/pulls`;
     for (let page = 1; ; ++page) {
@@ -86,9 +88,9 @@ export class GitHubRepository {
    * @returns {Object} Commit object of the merge commit, as returned by GitHub
    * API.
    */
-  async updateBranch(base: string, head: string) {
+  async updateBranch(base: string, head: string): Promise<Commit> {
     const url = `${this.repoUrl}/merges`;
-    const result = await this.#client.post(url, { base, head });
+    const result = await this.#client.post<Commit>(url, { base, head });
     return result.data;
   }
 
@@ -106,9 +108,9 @@ export class GitHubRepository {
     path: string,
     message: string,
     content: string
-  ) {
+  ): Promise<Commit> {
     const url = `${this.repoUrl}/contents/${path}`;
-    const result = await this.#client.put(url, {
+    const result = await this.#client.put<Commit>(url, {
       message,
       content,
       branch,
@@ -132,9 +134,9 @@ export class GitHubRepository {
     message: string,
     content: string,
     sha: string
-  ) {
+  ): Promise<Commit> {
     const url = `${this.repoUrl}/contents/${path}`;
-    const result = await this.#client.put(url, {
+    const result = await this.#client.put<Commit>(url, {
       message,
       content,
       sha,
@@ -167,7 +169,7 @@ export class GitHubRepository {
     });
 
     if (reviewers && reviewers.length > 0) {
-      await this.requestReview(pr.number, reviewers);
+      return await this.requestReview(pr.number, reviewers);
     }
 
     return pr;
@@ -179,9 +181,12 @@ export class GitHubRepository {
    * @param {string[]} reviewers Reviewers' GitHub logins for the pull request.
    * @returns Review object, as returned by GitHub API.
    */
-  async requestReview(prNumber: number, reviewers: string[]) {
+  async requestReview(
+    prNumber: number,
+    reviewers: string[]
+  ): Promise<PullRequest> {
     const url = `${this.repoUrl}/pulls/${prNumber}/requested_reviewers`;
-    const result = await this.#client.post(url, {
+    const result = await this.#client.post<PullRequest>(url, {
       reviewers,
     });
     return result.data;
@@ -192,9 +197,11 @@ export class GitHubRepository {
    * @param {Object} pr Pull request object, as returned by GitHib API.
    * @returns Review object, as returned by GitHub API.
    */
-  async approvePullRequest(pr: PullRequest) {
+  async approvePullRequest(pr: PullRequest): Promise<PullRequest> {
     const url = `${this.repoUrl}/pulls/${pr.number}/reviews`;
-    const result = await this.#client.post(url, { event: "APPROVE" });
+    const result = await this.#client.post<PullRequest>(url, {
+      event: "APPROVE",
+    });
     return result.data;
   }
 
@@ -204,9 +211,12 @@ export class GitHubRepository {
    * @param {string} title New title to give the PR
    * @returns Review object, as returned by GitHub API.
    */
-  async renamePullRequest(pr: PullRequest, title: string) {
+  async renamePullRequest(
+    pr: PullRequest,
+    title: string
+  ): Promise<PullRequest> {
     const url = `${this.repoUrl}/pulls/${pr.number}`;
-    const result = await this.#client.patch(url, { title });
+    const result = await this.#client.patch<PullRequest>(url, { title });
     return result.data;
   }
 
@@ -216,9 +226,9 @@ export class GitHubRepository {
    * @param {Array<string>} labels Labels to apply to the PR
    * @returns A list of labels that was added to the issue..
    */
-  async tagPullRequest(pr: PullRequest, labels: string[]) {
+  async tagPullRequest(pr: PullRequest, labels: string[]): Promise<Label[]> {
     const url = `${this.repoUrl}/issues/${pr.number}/labels`;
-    const result = await this.#client.post(url, { labels });
+    const result = await this.#client.post<Label[]>(url, { labels });
     return result.data;
   }
 
@@ -226,9 +236,11 @@ export class GitHubRepository {
    * Closes the given pull request without merging it.
    * @param {Object} pr Pull request object, as returned by GitHub API.
    */
-  async closePullRequest(pr: PullRequest) {
+  async closePullRequest(pr: PullRequest): Promise<PullRequest> {
     const url = `${this.repoUrl}/pulls/${pr.number}`;
-    const result = await this.#client.patch(url, { state: "closed" });
+    const result = await this.#client.patch<PullRequest>(url, {
+      state: "closed",
+    });
     return result.data;
   }
 
@@ -237,7 +249,9 @@ export class GitHubRepository {
    * @param {Object} pr Pull request object, as returned by GitHib API.
    * @returns Merge object, as returned by GitHub API.
    */
-  async mergePullRequest(pr: PullRequest) {
+  async mergePullRequest(
+    pr: PullRequest
+  ): Promise<{ sha: string; merged: boolean; message: string }> {
     const title = pr.title;
     const url = `${this.repoUrl}/pulls/${pr.number}/merge`;
     /* eslint-disable @typescript-eslint/camelcase */
@@ -254,44 +268,9 @@ export class GitHubRepository {
    * @param {string} branch Name of the branch.
    * @returns {Object} Branch object, as returned by GitHub API.
    */
-  async getBranch(branch: string) {
+  async getBranch(branch: string): Promise<Branch> {
     const url = `${this.repoUrl}/branches/${branch}`;
     const result = await this.#client.get<Branch>(url);
-    return result.data;
-  }
-
-  /**
-   * Returns branch protection settings for master branch.
-   * @returns {Object} Branch protection object, as returned by GitHub API.
-   */
-  async getRequiredMasterBranchProtection() {
-    const branch = "master";
-    const url = `${this.repoUrl}/branches/${branch}/protection`;
-    const result = await this.#client.get(url);
-    return result.data;
-  }
-
-  /**
-   * Returns branch protection status checks for master branch.
-   * @returns {Object} Status checks object, as returned by GitHub API.
-   */
-  async getRequiredMasterBranchProtectionStatusChecks() {
-    const branch = "master";
-    const url = `${this.repoUrl}/branches/${branch}/protection/required_status_checks`;
-    const result = await this.#client.get<StatusCheck[]>(url);
-    return result.data;
-  }
-
-  /**
-   * Updates branch protection status checks for master branch.
-   * @param {string[]} contexts Required status checks.
-   * @returns {Object} Status checks object, as returned by GitHub API.
-   */
-  async updateRequiredMasterBranchProtectionStatusChecks(contexts: string[]) {
-    const branch = "master";
-    const strict = true;
-    const url = `${this.repoUrl}/branches/${branch}/protection/required_status_checks`;
-    const result = await this.#client.patch(url, { strict, contexts });
     return result.data;
   }
 
@@ -305,9 +284,9 @@ export class GitHubRepository {
   async addCollaborator(
     username: string,
     permission: "pull" | "push" | "admin"
-  ) {
+  ): Promise<Repository> {
     const url = `${this.repoUrl}/collaborators/${username}`;
-    const result = await axios.put(url, { permission });
+    const result = await this.#client.put(url, { permission });
     return result.data;
   }
 }
