@@ -102,19 +102,19 @@ export class Repository {
     return tree.tree.findIndex((obj) => path === obj.path) !== -1;
   }
 
-  async getMatchingFiles(branch: string, pattern: string): Promise<File[]> {
+  async getMatchingFilesWithPredicate(
+    branch: string,
+    predicate: Predicate<TreeObject>
+  ): Promise<File[]> {
     const latestCommit = await this.getLatestCommitToBranch(branch);
     const tree = await this.getTree(latestCommit);
 
     this.failIfTruncated(tree);
-
-    const mm = new Minimatch(pattern, { matchBase: true });
-
     return tree.tree
       .filter(
         (to) =>
           (to.type === ObjectType.Blob || to.type === ObjectType.Commit) &&
-          mm.match(to.path)
+          predicate(to)
       )
       .map((to) => ({
         type: to.type,
@@ -127,11 +127,21 @@ export class Repository {
       }));
   }
 
+  async getMatchingFiles(branch: string, pattern: string): Promise<File[]> {
+    return await this.getMatchingFilesWithPredicate(
+      branch,
+      ObjectPredicates.glob(pattern)
+    );
+  }
+
   async getMatchingFilesWithContent(
     branch: string,
-    pattern: string
+    predicate: Predicate<TreeObject>
   ): Promise<File[]> {
-    const matchingFiles = await this.getMatchingFiles(branch, pattern);
+    const matchingFiles = await this.getMatchingFilesWithPredicate(
+      branch,
+      predicate
+    );
 
     const filesPromise = matchingFiles.map(async (f) => {
       f.content = await this.getBlob(f.url);
@@ -267,6 +277,20 @@ function notFoundToNull<T>(
       throw err;
     }
   });
+}
+export interface Predicate<T> {
+  (t: T): boolean;
+}
+
+export class ObjectPredicates {
+  public static glob(pattern: string, matchBase = true): Predicate<TreeObject> {
+    const mm = new Minimatch(pattern, { matchBase: matchBase });
+    return ((obj) => mm.match(obj.path)) as Predicate<TreeObject>;
+  }
+
+  public static pathEquals(path: string): Predicate<TreeObject> {
+    return ((obj) => obj.path === path) as Predicate<TreeObject>;
+  }
 }
 
 export interface File {

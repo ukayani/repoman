@@ -1,4 +1,12 @@
-import { Change, ObjectMode, ObjectType, Ref, Repository } from "./repository";
+import {
+  Change,
+  ObjectMode,
+  ObjectType,
+  Predicate,
+  Ref,
+  Repository,
+  TreeObject,
+} from "./repository";
 import { LocalFile } from "./filesystem";
 
 // use a map instead
@@ -53,7 +61,7 @@ export class Stage {
   }
 
   public modifyFiles(
-    pattern: string,
+    predicate: Predicate<TreeObject>,
     modifier: (
       path: string,
       content: Buffer,
@@ -64,7 +72,7 @@ export class Stage {
       const cloned = { ...changes };
       const files = await this.#repository.getMatchingFilesWithContent(
         this.#branch,
-        pattern
+        predicate
       );
       for (const file of files) {
         if (file.content) {
