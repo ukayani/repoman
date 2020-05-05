@@ -45,6 +45,13 @@ export class GitHubRepository {
     );
   }
 
+  get ID(): RepoID {
+    return {
+      name: this.name,
+      org: this.organization,
+    };
+  }
+
   get repoUrl(): string {
     return this.#repository.repoUrl;
   }
@@ -402,6 +409,11 @@ export interface RawRepo {
   };
 }
 
+export interface RepoID {
+  name: string;
+  org: string;
+}
+
 /**
  * Wraps some GitHub API calls.
  */
@@ -418,9 +430,7 @@ export class GitHub {
     return new GitHubRepository(this.client, rawRepo);
   }
 
-  async getRepositories(
-    repos: { name: string; org: string }[]
-  ): Promise<GitHubRepository[]> {
+  async getRepositories(repos: RepoID[]): Promise<GitHubRepository[]> {
     const allRepos = repos.map(async (r) => {
       return await this.getRepository(r.name, r.org);
     });

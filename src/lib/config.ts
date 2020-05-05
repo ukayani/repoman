@@ -8,6 +8,8 @@ const readFile = promisify(fs.readFile);
 import * as yaml from "js-yaml";
 import * as path from "path";
 import * as os from "os";
+import { RepoID } from "./github";
+const writeFile = promisify(fs.writeFile);
 
 const cache = new Map<string, Config>();
 
@@ -38,6 +40,25 @@ export async function getConfig(configFilename?: string): Promise<Config> {
     );
     throw new Error("Configuration file is not found");
   }
+}
+
+export async function saveRepoList(
+  list: RepoID[],
+  path?: string
+): Promise<void> {
+  const finalPath = path || `./repos.yaml`;
+
+  const content = Buffer.from(yaml.safeDump({ repos: list }, {}));
+  await writeFile(finalPath, content);
+}
+
+export async function loadRepoList(path?: string): Promise<RepoID[]> {
+  const finalPath = path || `./repos.yaml`;
+
+  const yamlContent = await readFile(finalPath, { encoding: "utf8" });
+  const { repos } = yaml.safeLoad(yamlContent) as { repos: RepoID[] };
+
+  return repos;
 }
 
 export interface Config {

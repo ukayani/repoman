@@ -1,2 +1,2 @@
 export { GitHub, DirectoryWriter, getFiles } from "./lib/github";
-export { getConfig, Config } from "./lib/config";
+export { getConfig, saveRepoList, loadRepoList, Config } from "./lib/config";
