@@ -5,6 +5,7 @@
 import axios, { AxiosInstance } from "axios";
 import { Commit, Repository } from "./github/repository";
 import { Checkout } from "./github/checkout";
+import { Links } from "./github/links";
 
 function createClient(token: string): AxiosInstance {
   return axios.create({
@@ -17,6 +18,7 @@ function createClient(token: string): AxiosInstance {
  * Wraps some GitHub API calls for the given repository.
  */
 export class GitHubRepository {
+  #rawRepository: RawRepo;
   #repository: Repository;
   #client: AxiosInstance;
 
@@ -24,11 +26,23 @@ export class GitHubRepository {
    * Creates an object to work with the given GitHub repository.
    * @constructor
    * @param {Object} axios github client
-   * @param {Object} repository Repository object, as returned by GitHub API.
+   * @param {Object} rawRepo Repository object, as returned by GitHub API.
    */
-  constructor(client: AxiosInstance, repository: Repository) {
+  constructor(client: AxiosInstance, rawRepo: RawRepo) {
     this.#client = client;
-    this.#repository = repository;
+    this.#rawRepository = rawRepo;
+    this.#repository = this.fromRaw(rawRepo);
+  }
+
+  fromRaw(rawRepo: RawRepo): Repository {
+    return new Repository(
+      this.#client,
+      rawRepo.name,
+      rawRepo.owner,
+      rawRepo.clone_url,
+      rawRepo.ssh_url,
+      rawRepo.archived
+    );
   }
 
   get repoUrl(): string {
@@ -43,6 +57,13 @@ export class GitHubRepository {
     return this.#repository.organization;
   }
 
+  public toString = (): string => {
+    return `Repo (${this.organization}:${this.name})`;
+  };
+
+  get raw(): RawRepo {
+    return this.#rawRepository;
+  }
   /**
    * Access low level git api for repo
    */
@@ -334,6 +355,53 @@ export interface Branch {
   protected: boolean;
 }
 
+export interface RawRepo {
+  name: string;
+  description: string;
+  owner: User;
+  private: boolean;
+  clone_url: string;
+  ssh_url: string;
+  archived: boolean;
+  fork: boolean;
+  url: string;
+  blobs_url: string;
+  trees_url: string;
+  pulls_url: string;
+  tags_url: string;
+  language: string;
+  forks_count: number;
+  stargazers_count: number;
+  watchers_count: number;
+  size: number;
+  default_branch: string;
+  open_issues_count: number;
+  topics: string[];
+  has_issues: boolean;
+  has_projects: boolean;
+  has_wiki: boolean;
+  disabled: boolean;
+  visibility: string;
+  pushed_at: string;
+  created_at: string;
+  updated_at: string;
+  permissions: {
+    pull: boolean;
+    triage: boolean;
+    push: boolean;
+    maintain: boolean;
+    admin: boolean;
+  };
+  allow_rebase_merge: boolean;
+  allow_squash_merge: boolean;
+  allow_merge_commit: true;
+  subscribers_count: number;
+  license: {
+    key: string;
+    name: string;
+  };
+}
+
 /**
  * Wraps some GitHub API calls.
  */
@@ -345,26 +413,9 @@ export class GitHub {
   }
 
   async getRepository(name: string, org: string): Promise<GitHubRepository> {
-    type Repo = {
-      name: string;
-      owner: User;
-      private: boolean;
-      clone_url: string;
-      ssh_url: string;
-      archived: boolean;
-    };
-    const res = await this.client.get<Repo>(`/repos/${org}/${name}`);
-    const rawRepo: Repo = res.data;
-    const repository = new Repository(
-      this.client,
-      rawRepo.name,
-      rawRepo.owner,
-      rawRepo.clone_url,
-      rawRepo.ssh_url,
-      rawRepo.archived
-    );
-
-    return new GitHubRepository(this.client, repository);
+    const res = await this.client.get<RawRepo>(`/repos/${org}/${name}`);
+    const rawRepo: RawRepo = res.data;
+    return new GitHubRepository(this.client, rawRepo);
   }
 
   async getRepositories(
@@ -376,7 +427,44 @@ export class GitHub {
 
     return await Promise.all(allRepos);
   }
+
+  async getRepositoriesMatching(
+    predicate: RepoPredicate
+  ): Promise<GitHubRepository[]> {
+    const res = await this.client.get<RawRepo[]>(`/user/repos`, {
+      params: { visibility: "all", affiliation: "owner,organization_member" },
+    });
+
+    let repos = res.data;
+    let links = Links.parse(res.headers["link"] as string);
+    while (links.has("next")) {
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      const next = await this.client.get<RawRepo[]>(links.get("next")!);
+      repos = repos.concat(next.data);
+      links = Links.parse(next.headers["link"] as string);
+    }
+
+    return await asyncFilter(
+      repos.map((r) => new GitHubRepository(this.client, r)),
+      (r) => predicate(r).catch(() => false)
+    );
+  }
 }
 
-export { toDir as DirectoryWriter, getFiles, LocalFile } from "./github/filesystem";
+async function asyncFilter<T>(
+  items: T[],
+  filter: (item: T) => Promise<boolean>
+): Promise<T[]> {
+  const filtered = await Promise.all(items.map(filter));
+  return items.filter((i: T, index: number) => filtered[index]);
+}
 
+export interface RepoPredicate {
+  (repo: GitHubRepository): Promise<boolean>;
+}
+
+export {
+  toDir as DirectoryWriter,
+  getFiles,
+  LocalFile,
+} from "./github/filesystem";

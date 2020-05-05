@@ -93,6 +93,15 @@ export class Repository {
     }
   }
 
+  async hasFileAtPath(branch: string, path: string): Promise<boolean> {
+    const latestCommit = await this.getLatestCommitToBranch(branch);
+    const tree = await this.getTree(latestCommit);
+
+    this.failIfTruncated(tree);
+
+    return tree.tree.findIndex((obj) => path === obj.path) !== -1;
+  }
+
   async getMatchingFiles(branch: string, pattern: string): Promise<File[]> {
     const latestCommit = await this.getLatestCommitToBranch(branch);
     const tree = await this.getTree(latestCommit);
@@ -232,7 +241,7 @@ export class Repository {
     const branchRef = await this.getBranch(branch);
 
     if (branchRef === null) {
-      throw new Error(`No such branch ${branch}`);
+      throw new Error(`No such branch ${branch} for ${this.name}`);
     }
 
     const url = `${this.repoUrl}/git/commits/${branchRef.object.sha}`;

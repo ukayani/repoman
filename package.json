@@ -1,5 +1,5 @@
 {
-  "name": "repoman",
+  "name": "github-stage",
   "version": "1.0.0",
   "description": "",
   "engines": {
@@ -9,6 +9,8 @@
     "build/src",
     "!build/src/**/*.map"
   ],
+  "main": "build/src/index.js",
+  "types": "build/src/index.d.ts",
   "dependencies": {
     "axios": "^0.19.0",
     "chalk": "^3.0.0",
@@ -37,7 +39,7 @@
     "typescript": "~3.8.3"
   },
   "scripts": {
-    "lint": "npm run check && eslint '**/*.ts'",
+    "lint": "eslint '**/*.ts'",
     "test": "c8 mocha build/test",
     "clean": "gts clean",
     "compile": "tsc -p .",
