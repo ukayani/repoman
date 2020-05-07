@@ -102,7 +102,7 @@ export class Repository {
     return tree.tree.findIndex((obj) => path === obj.path) !== -1;
   }
 
-  async getMatchingFilesWithPredicate(
+  async getFilesWithPredicate(
     branch: string,
     predicate: Predicate<TreeObject>
   ): Promise<File[]> {
@@ -127,18 +127,18 @@ export class Repository {
       }));
   }
 
-  async getMatchingFiles(branch: string, pattern: string): Promise<File[]> {
-    return await this.getMatchingFilesWithPredicate(
+  async getFiles(branch: string, pattern: string): Promise<File[]> {
+    return await this.getFilesWithPredicate(
       branch,
       ObjectPredicates.glob(pattern)
     );
   }
 
-  async getMatchingFilesWithContent(
+  async getFilesWithContent(
     branch: string,
     predicate: Predicate<TreeObject>
   ): Promise<File[]> {
-    const matchingFiles = await this.getMatchingFilesWithPredicate(
+    const matchingFiles = await this.getFilesWithPredicate(
       branch,
       predicate
     );

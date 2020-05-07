@@ -70,7 +70,7 @@ export class Stage {
   ): Stage {
     this.#changes.push(async (changes) => {
       const cloned = { ...changes };
-      const files = await this.#repository.getMatchingFilesWithContent(
+      const files = await this.#repository.getFilesWithContent(
         this.#branch,
         predicate
       );
