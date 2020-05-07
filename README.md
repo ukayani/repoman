@@ -5,3 +5,6 @@ A client library to manage github repositories to:
 - use glob patterns to modify files in a git repo
 - create pull requests
 
+## Todo
+- add ability to do a dry run of a commit
+- check if file/tree has changed, if it hasn't don't create a commit

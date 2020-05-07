@@ -6,6 +6,7 @@ import axios, { AxiosInstance } from "axios";
 import { Commit, Repository } from "./github/repository";
 import { Checkout } from "./github/checkout";
 import { Links } from "./github/links";
+import {Config} from "./config";
 
 function createClient(token: string): AxiosInstance {
   return axios.create({
@@ -422,6 +423,11 @@ export class GitHub {
 
   constructor(token: string) {
     this.client = createClient(token);
+  }
+
+  static async init(configFileName?: string): Promise<GitHub> {
+    const config = await Config.load(configFileName);
+    return new GitHub(config.token);
   }
 
   async getRepository(name: string, org: string): Promise<GitHubRepository> {
