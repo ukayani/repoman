@@ -3,6 +3,7 @@ import { Minimatch } from "minimatch";
 import * as p from "path";
 import { User } from "../github";
 import { Checkout } from "./checkout";
+import { Writers } from "./filesystem";
 
 export class Repository {
   #client: AxiosInstance;
@@ -148,21 +149,41 @@ export class Repository {
     return await Promise.all(filesPromise);
   }
 
-  async fetchBranch(branch: string, writer: GitObjectWriter): Promise<void> {
+  async fetchBranch(branch: string, writer: GitObjectWriter): Promise<void>;
+  async fetchBranch(branch: string, dest: string): Promise<void>;
+
+  async fetchBranch(
+    branch: string,
+    writer: GitObjectWriter | string
+  ): Promise<void> {
     const latestCommit = await this.getLatestCommitToBranch(branch);
-    return await this.fetch(latestCommit, writer);
+    if (isWriter(writer)) {
+      return await this.fetch(latestCommit, writer);
+    } else {
+      return await this.fetch(latestCommit, writer);
+    }
   }
 
-  async fetch(commit: Commit, writer: GitObjectWriter): Promise<void> {
+  async fetch(commit: Commit, writer: GitObjectWriter): Promise<void>;
+  async fetch(commit: Commit, dest: string): Promise<void>;
+
+  async fetch(commit: Commit, writer: GitObjectWriter | string): Promise<void> {
     const tree = await this.getTree(commit);
 
     this.failIfTruncated(tree);
+
+    let writerInstance: GitObjectWriter;
+    if (isWriter(writer)) {
+      writerInstance = writer;
+    } else {
+      writerInstance = Writers.toDir(writer);
+    }
 
     const fileWriterPromises = tree.tree
       .filter((obj) => obj.type === ObjectType.Blob)
       .map(async (obj) => {
         const data = await this.getBlob(obj.url);
-        await writer(obj.path, obj.mode, data);
+        await writerInstance(obj.path, obj.mode, data);
       });
 
     await Promise.all(fileWriterPromises);
@@ -288,6 +309,10 @@ export class ObjectPredicates {
   public static pathEquals(path: string): Predicate<TreeObject> {
     return ((obj) => obj.path === path) as Predicate<TreeObject>;
   }
+}
+
+function isWriter(writer: GitObjectWriter | string): writer is GitObjectWriter {
+  return !(typeof writer === "string");
 }
 
 export interface GitObjectWriter {

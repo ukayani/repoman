@@ -3,9 +3,8 @@ import { GitHub, Config, Writers, FS } from "../src";
 async function main() {
   const github = await GitHub.init();
   const repo = await github.getRepository("git-test", "ukayani");
-  const stage = await repo.checkout("testing-branch", "master").stage();
-  const files = await FS.getFile("./examples");
-  await stage.addLocalFiles(files).commit("testing");
+  await repo.git.fetchBranch("master", "./hello-world");
+
   console.log(repo.toString());
 }
 
