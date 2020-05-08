@@ -472,7 +472,7 @@ async function asyncFilter<T>(
   filter: (item: T) => Promise<boolean>
 ): Promise<T[]> {
   const filtered = await Promise.all(items.map(filter));
-  return items.filter((i: T, index: number) => filtered[index]);
+  return items.filter((_: T, index: number) => filtered[index]);
 }
 
 export interface RepoPredicate {

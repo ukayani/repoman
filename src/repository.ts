@@ -41,6 +41,18 @@ export class Repository {
     return this.#owner.login;
   }
 
+  get sshUrl(): string {
+    return this.#sshUrl;
+  }
+
+  get cloneUrl(): string {
+    return this.#cloneUrl;
+  }
+
+  get archived(): boolean {
+    return this.#archived;
+  }
+
   get repoUrl(): string {
     const owner = this.organization;
     const repo = this.name;
