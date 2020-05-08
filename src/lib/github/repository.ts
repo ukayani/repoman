@@ -138,10 +138,7 @@ export class Repository {
     branch: string,
     predicate: Predicate<TreeObject>
   ): Promise<File[]> {
-    const matchingFiles = await this.getFilesWithPredicate(
-      branch,
-      predicate
-    );
+    const matchingFiles = await this.getFilesWithPredicate(branch, predicate);
 
     const filesPromise = matchingFiles.map(async (f) => {
       f.content = await this.getBlob(f.url);
@@ -293,6 +290,10 @@ export class ObjectPredicates {
   }
 }
 
+export interface GitObjectWriter {
+  (path: string, mode: ObjectMode, content: Buffer): Promise<void>;
+}
+
 export interface File {
   type: ObjectType;
   size: number;
@@ -369,8 +370,4 @@ export interface Change {
   path: string;
   mode: ObjectMode;
   type: ObjectType;
-}
-
-export interface GitObjectWriter {
-  (path: string, mode: ObjectMode, content: Buffer): Promise<void>;
 }

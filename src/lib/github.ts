@@ -6,7 +6,7 @@ import axios, { AxiosInstance } from "axios";
 import { Commit, Repository } from "./github/repository";
 import { Checkout } from "./github/checkout";
 import { Links } from "./github/links";
-import {Config} from "./config";
+import { Config } from "./config";
 
 function createClient(token: string): AxiosInstance {
   return axios.create({
@@ -478,9 +478,3 @@ async function asyncFilter<T>(
 export interface RepoPredicate {
   (repo: GitHubRepository): Promise<boolean>;
 }
-
-export {
-  toDir as DirectoryWriter,
-  getFiles,
-  LocalFile,
-} from "./github/filesystem";
