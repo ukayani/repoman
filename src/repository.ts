@@ -1,7 +1,7 @@
 import { AxiosError, AxiosInstance, AxiosResponse } from "axios";
 import { Minimatch } from "minimatch";
 import * as p from "path";
-import { User } from "../github";
+import { User } from "./github";
 import { Checkout } from "./checkout";
 import { Writers } from "./filesystem";
 

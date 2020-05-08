@@ -6,11 +6,11 @@
     "node": ">=8.0.0"
   },
   "files": [
-    "build/src",
-    "!build/src/**/*.map"
+    "lib",
+    "!lib/*.map"
   ],
-  "main": "build/src/index.js",
-  "types": "build/src/index.d.ts",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
   "dependencies": {
     "axios": "^0.19.0",
     "chalk": "^3.0.0",

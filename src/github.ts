@@ -3,9 +3,9 @@
  */
 
 import axios, { AxiosInstance } from "axios";
-import { Commit, Repository } from "./github/repository";
-import { Checkout } from "./github/checkout";
-import { Links } from "./github/links";
+import { Commit, Repository } from "./repository";
+import { Checkout } from "./checkout";
+import { Links } from "./links";
 import { Config } from "./config";
 
 function createClient(token: string): AxiosInstance {
