@@ -1,5 +1,6 @@
 import {
   Change,
+  GitObject,
   ObjectMode,
   ObjectPredicates,
   ObjectType,
@@ -61,11 +62,47 @@ export class Stage {
   readonly #repository: Repository;
   readonly #branch: string;
   readonly #changes: ChangeSet[];
+  #dry = false;
 
   constructor(repository: Repository, branch: string) {
     this.#repository = repository;
     this.#branch = branch;
     this.#changes = [];
+  }
+
+  public dryRun(enabled = true): Stage {
+    this.#dry = enabled;
+    return this;
+  }
+
+  private createBlob(content: Buffer): Promise<GitObject> {
+    if (!this.isDryRun()) {
+      return this.#repository.createBlob(content);
+    } else {
+      return Promise.resolve({ type: ObjectType.Blob, sha: "n/a", url: "n/a" });
+    }
+  }
+
+  private createCommit(
+    branch: string,
+    message: string,
+    changes: Change[]
+  ): Promise<Ref> {
+    if (!this.isDryRun()) {
+      return this.#repository.createCommit(branch, message, changes, false);
+    } else {
+      return Promise.resolve({
+        ref: `refs/heads/${branch}`,
+        // eslint-disable-next-line @typescript-eslint/camelcase
+        node_id: "0",
+        url: "n/a",
+        object: { type: ObjectType.Commit, sha: "n/a", url: "n/a" },
+      });
+    }
+  }
+
+  private isDryRun(): boolean {
+    return this.#dry;
   }
 
   public addFile(
@@ -244,12 +281,7 @@ export class Stage {
     const changeList = Object.keys(finalChangesMap).map(
       (k) => finalChangesMap[k]
     );
-    return this.#repository.createCommit(
-      this.#branch,
-      message,
-      changeList,
-      false
-    );
+    return this.createCommit(this.#branch, message, changeList);
   }
 
   private changelog(entry: ChangeEntry): string {
@@ -272,7 +304,8 @@ export class Stage {
   ): ChangeApplicator {
     return async (changes) => {
       const cloned = { ...changes };
-      const blob = await this.#repository.createBlob(content);
+
+      const blob = await this.createBlob(content);
       cloned[path] = {
         path: path,
         sha: blob.sha,
@@ -300,7 +333,7 @@ export class Stage {
   ): ChangeApplicator {
     return async (changes) => {
       const cloned = { ...changes };
-      const blob = await this.#repository.createBlob(destContent);
+      const blob = await this.createBlob(destContent);
       cloned[path] = {
         path: path,
         sha: blob.sha,

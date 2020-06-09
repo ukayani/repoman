@@ -12,6 +12,7 @@ async function main() {
     .addFile("bumper2.txt", "Testing HEllo2\n")
     .deleteFile("bumper.txt")
     .moveFile("exc/test.sh", "exc/testing.sh")
+    .dryRun()
     .commit("add check");
 
   console.log(ref);
