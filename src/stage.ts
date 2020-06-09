@@ -1,6 +1,7 @@
 import {
   Change,
   ObjectMode,
+  ObjectPredicates,
   ObjectType,
   Predicate,
   Ref,
@@ -41,6 +42,21 @@ interface ChangeSet {
   changes: ChangeApplicator[];
 }
 
+export interface FileModifier {
+  (path: string, content: Buffer, mode: ObjectMode): Promise<{
+    content: Buffer;
+    mode: ObjectMode;
+  }>;
+}
+
+export interface SimpleFileModifier {
+  (path: string, content: string): Promise<string>;
+}
+
+export interface ContentModifier {
+  (content: string): Promise<string>;
+}
+
 export class Stage {
   readonly #repository: Repository;
   readonly #branch: string;
@@ -70,6 +86,47 @@ export class Stage {
         const filePath = basePath ? file.pathWithBase(basePath) : file.path;
         return this.add(filePath, file.data, file.mode);
       }),
+    });
+    return this;
+  }
+
+  public modifyFile(path: string, modifier: ContentModifier);
+  public modifyFile(
+    predicate: Predicate<TreeObject>,
+    modifier: ContentModifier
+  );
+  public modifyFile(
+    predicate: Predicate<TreeObject> | string,
+    modifier: ContentModifier
+  ): Stage {
+    this.#changes.push({
+      changes: [
+        async (changes) => {
+          let pred: Predicate<TreeObject>;
+          if (isPredicate(predicate)) {
+            pred = predicate;
+          } else {
+            pred = ObjectPredicates.pathEquals(predicate);
+          }
+
+          const files = await this.#repository.getFilesWithContent(
+            this.#branch,
+            pred
+          );
+          if (files.length === 1 && files[0].content) {
+            const file = files[0];
+            const modified = await modifier(file.content.toString("utf8"));
+            return this.modify(
+              file.path,
+              file.content,
+              Buffer.from(modified),
+              file.mode
+            )(changes);
+          } else {
+            console.log(`Warning: no file found for modification.`);
+          }
+        },
+      ],
     });
     return this;
   }
@@ -334,4 +391,10 @@ export class Stage {
       );
     };
   }
+}
+
+function isPredicate(
+  predicate: Predicate<TreeObject> | string
+): predicate is Predicate<TreeObject> {
+  return !(typeof predicate === "string");
 }
