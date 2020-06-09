@@ -1,17 +1,58 @@
 import { structuredPatch } from "diff";
 import * as chalk from "chalk";
 
-export function diffFiles(
-  filename: string,
-  oldStr: string,
-  newStr: string
-): string {
-  const diff = structuredPatch(filename, filename, oldStr, newStr);
+export function addFile(filename: string, content: Buffer): string {
   const ret = [];
-  ret.push("Index: " + filename);
+  const contentStr = content.toString("utf8");
+  ret.push(chalk.greenBright(`Added: ` + filename));
   ret.push(
     "==================================================================="
   );
+  const parts = contentStr.split("\n");
+  for (const line of parts) {
+    ret.push(chalk.greenBright(`+${line}`));
+  }
+
+  return ret.join("\n") + "\n";
+}
+
+export function deleteFile(filename: string): string {
+  const ret = [];
+  ret.push(chalk.redBright(`Deleted: ` + filename));
+  ret.push(
+    "==================================================================="
+  );
+  return ret.join("\n") + "\n";
+}
+
+export function moveFile(src: string, dest: string): string {
+  const ret = [];
+  ret.push(chalk.cyanBright(`Moved: ` + src));
+  ret.push(chalk.cyanBright(`To   : ` + dest));
+  ret.push(
+    "==================================================================="
+  );
+
+  return ret.join("\n") + "\n";
+}
+
+export function diffFiles(
+  filename: string,
+  oldStr: Buffer,
+  newStr: Buffer
+): string {
+  const diff = structuredPatch(
+    filename,
+    filename,
+    oldStr.toString("utf8"),
+    newStr.toString("utf8")
+  );
+  const ret = [];
+  ret.push(chalk.blueBright(`Modified: ` + filename));
+  ret.push(
+    "==================================================================="
+  );
+
   ret.push(
     "--- " +
       diff.oldFileName +

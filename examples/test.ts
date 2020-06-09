@@ -8,15 +8,18 @@ async function main() {
   const ref = await stage
     .modifyFiles(
       ObjectPredicates.pathEquals("bump.txt"),
-      async (path, content, mode) => {
+      async (_, content, mode) => {
         const contentString = content.toString("utf8");
         return {
-          content: Buffer.from("testing:::" + contentString),
+          content: Buffer.from("testing22\ntest:::" + contentString),
           mode,
         };
       }
     )
-    .commit("modify check");
+    .addFile("bumper2.txt", "Testing HEllo2\n")
+    .deleteFile("bumper.txt")
+    .moveFile("exc/test.sh", "exc/testing.sh")
+    .commit("add check");
 
   console.log(ref);
 }

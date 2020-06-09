@@ -8,15 +8,16 @@ import {
   TreeObject,
 } from "./repository";
 import { LocalFile } from "./filesystem";
+import { addFile, deleteFile, diffFiles, moveFile } from "./diff";
 
 // use a map instead
 type ChangeMap = Record<string, Change>;
 
 enum ChangeType {
-  Modify = "modify",
-  Add = "add",
-  Delete = "delete",
-  Move = "move",
+  Modify = "Modify",
+  Add = "Add",
+  Delete = "Delete",
+  Move = "Move",
 }
 
 interface ChangeEntry {
@@ -176,7 +177,7 @@ export class Stage {
         const changes = await changesPromise;
         const changeResults = await this.sequence(changeSet.changes)(changes);
         changeResults.entries.forEach((entry) => {
-          console.log(entry.type);
+          console.log(this.changelog(entry));
         });
         return changeResults.changes;
       },
@@ -192,6 +193,18 @@ export class Stage {
       changeList,
       false
     );
+  }
+
+  private changelog(entry: ChangeEntry): string {
+    if (entry.type === ChangeType.Modify) {
+      return diffFiles(entry.src, entry.srcContent, entry.destContent);
+    } else if (entry.type === ChangeType.Add) {
+      return addFile(entry.dest, entry.destContent);
+    } else if (entry.type === ChangeType.Delete) {
+      return deleteFile(entry.src);
+    } else {
+      return moveFile(entry.src, entry.dest);
+    }
   }
 
   private add(
@@ -262,7 +275,7 @@ export class Stage {
         entries: [
           {
             type: ChangeType.Delete,
-            dest: path,
+            src: path,
           },
         ],
       };
