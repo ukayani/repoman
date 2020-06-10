@@ -1,6 +1,6 @@
 {
-  "name": "github-stage",
-  "version": "1.0.0",
+  "name": "repoman",
+  "version": "0.0.1",
   "description": "",
   "engines": {
     "node": ">=8.0.0"
