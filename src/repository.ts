@@ -258,7 +258,11 @@ export class Repository {
     return res.data;
   }
 
-  async createBranch(name: string, branch: string): Promise<Ref> {
+  async createBranch(name: string, branch = "master"): Promise<Ref> {
+    const ref = await this.getBranch(this.name);
+
+    if (ref !== null) return ref;
+
     const commit = await this.getLatestCommitToBranch(branch);
     return await this.createBranchFromSha(name, commit.sha);
   }

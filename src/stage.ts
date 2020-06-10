@@ -62,21 +62,15 @@ export interface ContentModifier {
 export class Stage {
   readonly #repository: Repository;
   readonly #branch: string;
-  readonly #startRef?: string;
+  readonly #baseBranch: string;
   readonly #changes: ChangeSet[];
   #dry = false;
 
-  constructor(
-    repository: Repository,
-    branch: string,
-    startRef?: string,
-    dryRun = false
-  ) {
+  constructor(repository: Repository, branch: string, baseBranch: string) {
     this.#repository = repository;
     this.#branch = branch;
     this.#changes = [];
-    this.#startRef = startRef;
-    this.#dry = dryRun;
+    this.#baseBranch = baseBranch;
   }
 
   public dryRun(enabled = true): Stage {
@@ -85,11 +79,7 @@ export class Stage {
   }
 
   private getBranch(): string {
-    if (this.isDryRun() && this.#startRef) {
-      return this.#startRef;
-    } else {
-      return this.#branch;
-    }
+    return this.#baseBranch;
   }
 
   private createBlob(content: Buffer): Promise<GitObject> {
@@ -104,22 +94,23 @@ export class Stage {
     }
   }
 
-  private createCommit(message: string, changes: Change[]): Promise<Ref> {
+  private async createCommit(message: string, changes: Change[]): Promise<Ref> {
     if (!this.isDryRun()) {
-      return this.#repository.createCommit(
-        this.getBranch(),
+      await this.#repository.createBranch(this.#branch, this.#baseBranch);
+      return await this.#repository.createCommit(
+        this.#branch,
         message,
         changes,
         false
       );
     } else {
-      return Promise.resolve({
+      return {
         ref: `refs/heads/${this.#branch}`,
         // eslint-disable-next-line @typescript-eslint/camelcase
         node_id: "0",
         url: "n/a",
         object: { type: ObjectType.Commit, sha: "n/a", url: "n/a" },
-      });
+      };
     }
   }
 
