@@ -61,18 +61,34 @@ export interface ContentModifier {
 export class Stage {
   readonly #repository: Repository;
   readonly #branch: string;
+  readonly #startRef?: string;
   readonly #changes: ChangeSet[];
   #dry = false;
 
-  constructor(repository: Repository, branch: string) {
+  constructor(
+    repository: Repository,
+    branch: string,
+    startRef?: string,
+    dryRun = false
+  ) {
     this.#repository = repository;
     this.#branch = branch;
     this.#changes = [];
+    this.#startRef = startRef;
+    this.#dry = dryRun;
   }
 
   public dryRun(enabled = true): Stage {
     this.#dry = enabled;
     return this;
+  }
+
+  private getBranch(): string {
+    if (this.isDryRun() && this.#startRef) {
+      return this.#startRef;
+    } else {
+      return this.#branch;
+    }
   }
 
   private createBlob(content: Buffer): Promise<GitObject> {
@@ -83,16 +99,17 @@ export class Stage {
     }
   }
 
-  private createCommit(
-    branch: string,
-    message: string,
-    changes: Change[]
-  ): Promise<Ref> {
+  private createCommit(message: string, changes: Change[]): Promise<Ref> {
     if (!this.isDryRun()) {
-      return this.#repository.createCommit(branch, message, changes, false);
+      return this.#repository.createCommit(
+        this.getBranch(),
+        message,
+        changes,
+        false
+      );
     } else {
       return Promise.resolve({
-        ref: `refs/heads/${branch}`,
+        ref: `refs/heads/${this.#branch}`,
         // eslint-disable-next-line @typescript-eslint/camelcase
         node_id: "0",
         url: "n/a",
@@ -147,7 +164,7 @@ export class Stage {
           }
 
           const files = await this.#repository.getFilesWithContent(
-            this.#branch,
+            this.getBranch(),
             pred
           );
           if (files.length === 1 && files[0].content) {
@@ -180,7 +197,7 @@ export class Stage {
       changes: [
         async (changes) => {
           const files = await this.#repository.getFilesWithContent(
-            this.#branch,
+            this.getBranch(),
             predicate
           );
           const applicatorPromises = files
@@ -251,7 +268,7 @@ export class Stage {
 
   public async commit(message: string): Promise<Ref> {
     const latestCommit = await this.#repository.getLatestCommitToBranch(
-      this.#branch
+      this.getBranch()
     );
     const latestTree = await this.#repository.getTree(latestCommit);
 
@@ -281,7 +298,7 @@ export class Stage {
     const changeList = Object.keys(finalChangesMap).map(
       (k) => finalChangesMap[k]
     );
-    return this.createCommit(this.#branch, message, changeList);
+    return this.createCommit(message, changeList);
   }
 
   private changelog(entry: ChangeEntry): string {
