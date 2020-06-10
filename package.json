@@ -1,7 +1,7 @@
 {
-  "name": "repoman",
+  "name": "@ukayani/repoman",
   "version": "0.0.1",
-  "description": "",
+  "description": "Github repository automation client",
   "engines": {
     "node": ">=8.0.0"
   },
