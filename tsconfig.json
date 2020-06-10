@@ -1,13 +1,16 @@
 {
-  "extends": "./node_modules/gts/tsconfig-google.json",
   "compilerOptions": {
-    "rootDir": ".",
-    "outDir": "build"
+    "target": "ES2015",
+    "outDir": "lib",
+    "module": "CommonJS",
+    "moduleResolution": "node",
+    "declaration": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "forceConsistentCasingInFileNames": true
   },
   "include": [
-    "src/*.ts",
-    "src/**/*.ts",
-    "test/*.ts",
-    "examples/test.ts"
+    "./src"
   ]
 }

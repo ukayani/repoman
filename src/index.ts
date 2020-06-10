@@ -1,4 +1,4 @@
-export { GitHub, RepoPredicate } from "./lib/github";
-export { Config } from "./lib/config";
-export { ObjectPredicates } from "./lib/github/repository";
-export { Writers, FS } from "./lib/github/filesystem";
+export { GitHub, RepoPredicate } from "./github";
+export { Config } from "./config";
+export { ObjectPredicates } from "./repository";
+export { Writers, FS } from "./filesystem";

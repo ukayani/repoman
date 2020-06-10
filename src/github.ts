@@ -3,9 +3,9 @@
  */
 
 import axios, { AxiosInstance } from "axios";
-import { Commit, Repository } from "./github/repository";
-import { Checkout } from "./github/checkout";
-import { Links } from "./github/links";
+import { Commit, Repository } from "./repository";
+import { Checkout } from "./checkout";
+import { Links } from "./links";
 import { Config } from "./config";
 
 function createClient(token: string): AxiosInstance {
@@ -472,7 +472,7 @@ async function asyncFilter<T>(
   filter: (item: T) => Promise<boolean>
 ): Promise<T[]> {
   const filtered = await Promise.all(items.map(filter));
-  return items.filter((i: T, index: number) => filtered[index]);
+  return items.filter((_: T, index: number) => filtered[index]);
 }
 
 export interface RepoPredicate {

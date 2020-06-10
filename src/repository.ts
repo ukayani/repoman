@@ -1,7 +1,7 @@
 import { AxiosError, AxiosInstance, AxiosResponse } from "axios";
 import { Minimatch } from "minimatch";
 import * as p from "path";
-import { User } from "../github";
+import { User } from "./github";
 import { Checkout } from "./checkout";
 import { Writers } from "./filesystem";
 
@@ -39,6 +39,18 @@ export class Repository {
 
   get organization(): string {
     return this.#owner.login;
+  }
+
+  get sshUrl(): string {
+    return this.#sshUrl;
+  }
+
+  get cloneUrl(): string {
+    return this.#cloneUrl;
+  }
+
+  get archived(): boolean {
+    return this.#archived;
   }
 
   get repoUrl(): string {
