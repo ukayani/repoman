@@ -11,6 +11,7 @@ import {
 } from "./repository";
 import { LocalFile } from "./filesystem";
 import { addFile, deleteFile, diffFiles, moveFile } from "./diff";
+import { blobSha } from "./sha";
 
 // use a map instead
 type ChangeMap = Record<string, Change>;
@@ -95,7 +96,11 @@ export class Stage {
     if (!this.isDryRun()) {
       return this.#repository.createBlob(content);
     } else {
-      return Promise.resolve({ type: ObjectType.Blob, sha: "n/a", url: "n/a" });
+      return Promise.resolve({
+        type: ObjectType.Blob,
+        sha: blobSha(content),
+        url: "n/a",
+      });
     }
   }
 
@@ -266,7 +271,7 @@ export class Stage {
     return this;
   }
 
-  public async commit(message: string): Promise<Ref> {
+  public async commit(message: string): Promise<Ref | null> {
     const latestCommit = await this.#repository.getLatestCommitToBranch(
       this.getBranch()
     );
@@ -295,10 +300,14 @@ export class Stage {
       Promise.resolve(existingChangesMap)
     );
 
+    if (Object.is(existingChangesMap, finalChangesMap)) {
+      return null;
+    }
+
     const changeList = Object.keys(finalChangesMap).map(
       (k) => finalChangesMap[k]
     );
-    return this.createCommit(message, changeList);
+    return await this.createCommit(message, changeList);
   }
 
   private changelog(entry: ChangeEntry): string {
@@ -313,6 +322,10 @@ export class Stage {
     }
   }
 
+  private nochange(changes: ChangeMap): ChangeResult {
+    return { changes, entries: [] };
+  }
+
   private add(
     path: string,
     content: Buffer,
@@ -320,6 +333,9 @@ export class Stage {
     type = ObjectType.Blob
   ): ChangeApplicator {
     return async (changes) => {
+      if (path in changes && changes[path].sha === blobSha(content)) {
+        return this.nochange(changes);
+      }
       const cloned = { ...changes };
 
       const blob = await this.createBlob(content);
@@ -349,7 +365,12 @@ export class Stage {
     destMode: ObjectMode
   ): ChangeApplicator {
     return async (changes) => {
+      if (path in changes && changes[path].sha === blobSha(destContent)) {
+        return this.nochange(changes);
+      }
+
       const cloned = { ...changes };
+
       const blob = await this.createBlob(destContent);
       cloned[path] = {
         path: path,
@@ -374,6 +395,9 @@ export class Stage {
 
   private delete(path: string): ChangeApplicator {
     return async (changes) => {
+      if (!(path in changes)) {
+        return this.nochange(changes);
+      }
       const cloned = { ...changes };
       delete cloned[path];
 
@@ -391,6 +415,10 @@ export class Stage {
 
   private move(src: string, dest: string): ChangeApplicator {
     return async (changes) => {
+      if (!(src in changes)) {
+        return this.nochange(changes);
+      }
+
       const cloned = { ...changes };
 
       const change = cloned[src];
