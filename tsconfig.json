@@ -5,12 +5,14 @@
     "module": "CommonJS",
     "moduleResolution": "node",
     "declaration": true,
+    "declarationMap": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
     "forceConsistentCasingInFileNames": true
   },
   "include": [
-    "./src"
+    "./src",
+    "./test"
   ]
 }

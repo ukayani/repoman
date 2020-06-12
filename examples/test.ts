@@ -1,5 +1,4 @@
 import { GitHub } from "../src";
-import { blobSha } from "../src/sha";
 
 async function main() {
   const github = await GitHub.init();
@@ -15,7 +14,6 @@ async function main() {
 
   console.log(ref);
   console.log(repo.name);
-  console.log(blobSha(Buffer.from("what is up, doc?")));
 }
 
 main().catch(console.error);
