@@ -25,14 +25,18 @@ export class Links {
   }
 }
 
-function parseLinks(links: string): Map<string, Link> {
-  return links
-    .split(",")
-    .map(parseLink)
-    .reduce((acc, link) => {
-      acc.set(link.rel, link);
-      return acc;
-    }, new Map<string, Link>());
+function parseLinks(links?: string): Map<string, Link> {
+  if (links) {
+    return links
+      .split(",")
+      .map(parseLink)
+      .reduce((acc, link) => {
+        acc.set(link.rel, link);
+        return acc;
+      }, new Map<string, Link>());
+  } else {
+    return new Map<string, Link>();
+  }
 }
 
 function parseLinkUri(uriComponent: string): string {

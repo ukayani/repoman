@@ -2,17 +2,21 @@
  * @fileoverview GitHub API calls.
  */
 
-import axios, { AxiosInstance } from "axios";
+import axios, { AxiosError, AxiosInstance } from "axios";
 import { Commit, Repository } from "./repository";
 import { Checkout } from "./checkout";
 import { Links } from "./links";
 import { Config } from "./config";
 
 function createClient(token: string): AxiosInstance {
-  return axios.create({
+  const client = axios.create({
     baseURL: "https://api.github.com",
     headers: { Authorization: `token ${token}` },
   });
+
+  client.interceptors.response.use(null, retryHandler(client));
+
+  return client;
 }
 
 /**
@@ -343,6 +347,7 @@ export interface Label {
 }
 
 export interface User {
+  id: number;
   login: string;
 }
 
@@ -364,7 +369,9 @@ export interface Branch {
 }
 
 export interface RawRepo {
+  id: number;
   name: string;
+  full_name: string;
   description: string;
   owner: User;
   private: boolean;
@@ -389,22 +396,22 @@ export interface RawRepo {
   has_projects: boolean;
   has_wiki: boolean;
   disabled: boolean;
-  visibility: string;
+  visibility?: string;
   pushed_at: string;
   created_at: string;
   updated_at: string;
   permissions: {
     pull: boolean;
-    triage: boolean;
+    triage?: boolean;
     push: boolean;
-    maintain: boolean;
+    maintain?: boolean;
     admin: boolean;
   };
   allow_rebase_merge: boolean;
   allow_squash_merge: boolean;
-  allow_merge_commit: true;
+  allow_merge_commit: boolean;
   subscribers_count: number;
-  license: {
+  license?: {
     key: string;
     name: string;
   };
@@ -444,21 +451,42 @@ export class GitHub {
     return await Promise.all(allRepos);
   }
 
+  async searchCode(q: string): Promise<CodeFile[]> {
+    return await fetchPagedResults(
+      this.client,
+      "/search/code",
+      { q },
+      [] as CodeFile[],
+      (a, b: SearchResult) => {
+        return a.concat(b.items);
+      }
+    );
+  }
+
+  async getRepositoriesByCode(q: string): Promise<GitHubRepository[]> {
+    const files = await this.searchCode(q);
+    const repoMap = files.reduce((repoMap, f) => {
+      repoMap[f.repository.full_name] = f.repository;
+      return repoMap;
+    }, {} as Record<string, RawRepo>);
+    return Object.values(repoMap).map(
+      (r) => new GitHubRepository(this.client, r)
+    );
+  }
+
   async getRepositoriesMatching(
     predicate: RepoPredicate
   ): Promise<GitHubRepository[]> {
-    const res = await this.client.get<RawRepo[]>(`/user/repos`, {
-      params: { visibility: "all", affiliation: "owner,organization_member" },
-    });
-
-    let repos = res.data;
-    let links = Links.parse(res.headers["link"] as string);
-    while (links.has("next")) {
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      const next = await this.client.get<RawRepo[]>(links.get("next")!);
-      repos = repos.concat(next.data);
-      links = Links.parse(next.headers["link"] as string);
-    }
+    const repos = await fetchPagedResults(
+      this.client,
+      "/user/repos",
+      {
+        visibility: "all",
+        affiliation: "owner,organization_member",
+      },
+      [] as RawRepo[],
+      (a, b: RawRepo[]) => a.concat(b)
+    );
 
     return await asyncFilter(
       repos.map((r) => new GitHubRepository(this.client, r)),
@@ -477,4 +505,72 @@ async function asyncFilter<T>(
 
 export interface RepoPredicate {
   (repo: GitHubRepository): Promise<boolean>;
+}
+
+async function fetchPagedResults<T, R>(
+  client: AxiosInstance,
+  path: string,
+  params: Record<string, any>,
+  identity: R,
+  combiner: (a: R, b: T) => R
+): Promise<R> {
+  const res = await client.get<T>(path, {
+    params,
+  });
+
+  let data = combiner(identity, res.data);
+  let links = Links.parse(res.headers["link"] as string);
+  while (links.has("next")) {
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const next = await client.get<T>(links.get("next")!);
+    data = combiner(data, next.data);
+    links = Links.parse(next.headers["link"] as string);
+  }
+
+  return data;
+}
+
+interface SearchResult {
+  total_count: number;
+  incomplete_results: boolean;
+  items: CodeFile[];
+}
+
+export interface CodeFile {
+  name: string;
+  path: string;
+  sha: string;
+  repository: RawRepo;
+  git_url: string;
+  score: number;
+}
+
+const namespace = "repoman";
+const RETRY_BUFFER = 100;
+
+function retryHandler(
+  client: AxiosInstance,
+  maxRetries = 2
+): (err: AxiosError) => Promise<any> {
+  return (err) => {
+    if (!err) {
+      return Promise.reject(err);
+    }
+
+    const config = err.config;
+    const state = config[namespace] || {};
+    state.count = state.count || 0;
+    config[namespace] = state;
+    const GithubRetryAfter = "retry-after";
+    const retryAfter = err.response?.headers[GithubRetryAfter] as string;
+    if (retryAfter && state.count < maxRetries) {
+      const retry = parseInt(retryAfter) * 1000 + RETRY_BUFFER;
+      state.count += 1;
+      return new Promise((resolve) =>
+        setTimeout(() => resolve(client(config)), retry)
+      );
+    } else {
+      return Promise.reject(err);
+    }
+  };
 }
