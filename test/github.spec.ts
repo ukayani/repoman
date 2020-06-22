@@ -17,8 +17,6 @@ function repoPath(name: string, user: string): string {
   return `/repos/${user}/${name}`;
 }
 
-//nock.recorder.rec();
-
 describe("GitHub", () => {
   it("should get single repository", async () => {
     const github = new GitHub(token);

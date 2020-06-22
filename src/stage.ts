@@ -106,8 +106,6 @@ export class Stage {
     } else {
       return {
         ref: `refs/heads/${this.#branch}`,
-        // eslint-disable-next-line @typescript-eslint/camelcase
-        node_id: "0",
         url: "n/a",
         object: { type: ObjectType.Commit, sha: "n/a", url: "n/a" },
       };

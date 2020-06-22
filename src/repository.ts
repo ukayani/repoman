@@ -384,7 +384,6 @@ export interface TreeObject {
 
 export interface Ref {
   ref: string;
-  node_id: string;
   url: string;
   object: GitObject;
 }
