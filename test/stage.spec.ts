@@ -25,11 +25,11 @@ describe("Stage", () => {
     const repo: Repository = createMockRepo("ukayani", branch, []);
 
     const stage = new Stage(instance(repo), branch, baseBranch);
-    const ref = await stage
+    const result = await stage
       .addFile(".gitignore", content)
       .commit("added git ignore");
 
-    assertIsRef(ref.ref, branch);
+    assert.equal(result.branch, branch);
     const changes = getCommitedChanges(repo);
     const assertions = new ChangeAssertion(changes);
     assertions.hasFile(".gitignore");
@@ -46,20 +46,16 @@ describe("Stage", () => {
     ]);
 
     const stage = new Stage(instance(repo), branch, baseBranch);
-    const ref = await stage
+    const result = await stage
       .addFile(".gitignore", content)
       .commit("added git ignore");
 
-    assert.equal(ref, null);
+    assert.equal(result.hasChanges(), false);
     verify(
       repo.createCommit(anything(), anything(), anything(), anything())
     ).never();
   });
 });
-
-function assertIsRef(actual: string, expectedBranch: string): void {
-  assert.equal(actual, `refs/heads/${expectedBranch}`);
-}
 
 function getCommitedChanges(repo: Repository): Change[] {
   return capture(repo.createCommit).last()[2];

@@ -63,13 +63,13 @@ export class Stage {
   readonly #repository: Repository;
   readonly #branch: string;
   readonly #baseBranch: string;
-  readonly #changes: ChangeSet[];
+  readonly #changeSets: ChangeSet[];
   #dry = false;
 
   constructor(repository: Repository, branch: string, baseBranch: string) {
     this.#repository = repository;
     this.#branch = branch;
-    this.#changes = [];
+    this.#changeSets = [];
     this.#baseBranch = baseBranch;
   }
 
@@ -121,7 +121,7 @@ export class Stage {
     content: string,
     mode: ObjectMode = ObjectMode.File
   ): Stage {
-    this.#changes.push({
+    this.#changeSets.push({
       changes: [this.add(path, Buffer.from(content), mode)],
     });
 
@@ -129,7 +129,7 @@ export class Stage {
   }
 
   public addLocalFiles(files: LocalFile[], basePath?: string): Stage {
-    this.#changes.push({
+    this.#changeSets.push({
       changes: files.map((file) => {
         const filePath = basePath ? file.pathWithBase(basePath) : file.path;
         return this.add(filePath, file.data, file.mode);
@@ -147,7 +147,7 @@ export class Stage {
     predicate: Predicate<TreeObject> | string,
     modifier: ContentModifier
   ): Stage {
-    this.#changes.push({
+    this.#changeSets.push({
       changes: [
         async (changes) => {
           let pred: Predicate<TreeObject>;
@@ -187,7 +187,7 @@ export class Stage {
       mode: ObjectMode
     ) => Promise<{ content: Buffer; mode: ObjectMode }>
   ): Stage {
-    this.#changes.push({
+    this.#changeSets.push({
       changes: [
         async (changes) => {
           const files = await this.#repository.getFilesWithContent(
@@ -215,7 +215,7 @@ export class Stage {
   }
 
   public deleteFile(path: string): Stage {
-    this.#changes.push({
+    this.#changeSets.push({
       changes: [
         async (changes) => {
           const single = await this.delete(path);
@@ -234,7 +234,7 @@ export class Stage {
   }
 
   public moveFile(src: string, dest: string): Stage {
-    this.#changes.push({
+    this.#changeSets.push({
       changes: [
         async (changes) => {
           if (src in changes) {
@@ -260,7 +260,7 @@ export class Stage {
     return this;
   }
 
-  public async commit(message: string): Promise<Ref | null> {
+  public async commit(message: string): Promise<CommitCompletion> {
     const latestCommit = await this.#repository.getLatestCommitToBranch(
       this.getBranch()
     );
@@ -270,45 +270,42 @@ export class Stage {
       throw new Error("Unable to retrieve all objects for current tree");
     }
 
-    const existingChangesMap = latestTree.tree
-      .filter((t) => t.type !== ObjectType.Tree)
-      .reduce((acc, obj) => {
-        acc[obj.path] = obj;
-        return acc;
-      }, {} as ChangeMap);
+    const existingChangesState = new ChangeState(
+      latestTree.tree
+        .filter((t) => t.type !== ObjectType.Tree)
+        .reduce((acc, obj) => {
+          acc[obj.path] = obj;
+          return acc;
+        }, {} as ChangeMap)
+    );
 
-    const finalChangesMap = await this.#changes.reduce(
-      async (changesPromise, changeSet) => {
-        const changes = await changesPromise;
-        const changeResults = await this.sequence(changeSet.changes)(changes);
-        changeResults.entries.forEach((entry) => {
-          console.log(this.changelog(entry));
-        });
-        return changeResults.changes;
+    const finalChangeState = await this.#changeSets.reduce(
+      async (changeStatePromise, changeSet) => {
+        const changeState = await changeStatePromise;
+        const changeResults = await this.sequence(changeSet.changes)(
+          changeState.changeMap
+        );
+
+        return changeState.update(changeResults.changes, changeResults.entries);
       },
-      Promise.resolve(existingChangesMap)
+      Promise.resolve(existingChangesState)
     );
 
-    if (Object.is(existingChangesMap, finalChangesMap)) {
-      return null;
+    if (finalChangeState.equals(existingChangesState)) {
+      return new CommitCompletion(this.#branch, [], this.isDryRun());
     }
 
-    const changeList = Object.keys(finalChangesMap).map(
-      (k) => finalChangesMap[k]
+    const ref = await this.createCommit(
+      message,
+      finalChangeState.toChangeList()
     );
-    return await this.createCommit(message, changeList);
-  }
 
-  private changelog(entry: ChangeEntry): string {
-    if (entry.type === ChangeType.Modify) {
-      return diffFiles(entry.src, entry.srcContent, entry.destContent);
-    } else if (entry.type === ChangeType.Add) {
-      return addFile(entry.dest, entry.destContent);
-    } else if (entry.type === ChangeType.Delete) {
-      return deleteFile(entry.src);
-    } else {
-      return moveFile(entry.src, entry.dest);
-    }
+    return new CommitCompletion(
+      this.#branch,
+      finalChangeState.entries,
+      this.isDryRun(),
+      ref
+    );
   }
 
   private nochange(changes: ChangeMap): ChangeResult {
@@ -464,4 +461,89 @@ function isPredicate(
   predicate: Predicate<TreeObject> | string
 ): predicate is Predicate<TreeObject> {
   return !(typeof predicate === "string");
+}
+
+function changelog(entry: ChangeEntry): string {
+  if (entry.type === ChangeType.Modify) {
+    return diffFiles(entry.src, entry.srcContent, entry.destContent);
+  } else if (entry.type === ChangeType.Add) {
+    return addFile(entry.dest, entry.destContent);
+  } else if (entry.type === ChangeType.Delete) {
+    return deleteFile(entry.src);
+  } else {
+    return moveFile(entry.src, entry.dest);
+  }
+}
+
+class ChangeState {
+  readonly #changeMap: ChangeMap;
+  readonly #entries: ChangeEntry[];
+
+  constructor(changeMap: ChangeMap, entries: ChangeEntry[] = []) {
+    this.#changeMap = changeMap;
+    this.#entries = entries;
+  }
+
+  get changeMap(): ChangeMap {
+    return this.#changeMap;
+  }
+
+  get entries(): ChangeEntry[] {
+    return this.#entries;
+  }
+
+  update(changeMap: ChangeMap, newEntries: ChangeEntry[]): ChangeState {
+    return new ChangeState(changeMap, this.entries.concat(newEntries));
+  }
+
+  toChangeList(): Change[] {
+    return Object.keys(this.#changeMap).map((k) => this.#changeMap[k]);
+  }
+
+  equals(that: ChangeState): boolean {
+    return Object.is(this.changeMap, that.changeMap);
+  }
+}
+
+export class CommitCompletion {
+  readonly #ref?: Ref;
+  readonly #dryRun: boolean;
+  readonly #changes: ChangeEntry[];
+  readonly #branch: string;
+
+  constructor(
+    branch: string,
+    changes: ChangeEntry[],
+    dryRun = false,
+    ref?: Ref
+  ) {
+    this.#ref = ref;
+    this.#dryRun = dryRun;
+    this.#branch = branch;
+    this.#changes = changes;
+  }
+
+  changelog(): string {
+    return this.#changes.map(changelog).join("\n");
+  }
+
+  hasChanges(): boolean {
+    if (this.#ref) {
+      return true;
+    } else {
+      return false;
+    }
+  }
+
+  get dryRun(): boolean {
+    return this.#dryRun;
+  }
+
+  get ref(): Ref {
+    return this.#ref;
+  }
+
+  get branch(): string {
+    return this.#branch;
+  }
 }
