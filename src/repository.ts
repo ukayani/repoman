@@ -2,8 +2,8 @@ import { AxiosError, AxiosInstance, AxiosResponse } from "axios";
 import { Minimatch } from "minimatch";
 import * as p from "path";
 import { User } from "./github";
-import { Checkout } from "./checkout";
 import { Writers } from "./filesystem";
+import { Stage } from "./stage";
 
 export class Repository {
   #client: AxiosInstance;
@@ -59,8 +59,8 @@ export class Repository {
     return `/repos/${owner}/${repo}`;
   }
 
-  public checkout(branch: string, startPoint?: string): Checkout {
-    return new Checkout(this, branch, startPoint);
+  public checkout(branch: string, baseBranch = "master"): Stage {
+    return new Stage(this, branch, baseBranch);
   }
 
   async createBlob(content: Buffer): Promise<GitObject> {

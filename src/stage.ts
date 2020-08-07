@@ -65,6 +65,7 @@ export class Stage {
   readonly #baseBranch: string;
   readonly #changeSets: ChangeSet[];
   #dry = false;
+  #_cachedBasedBranch?: string;
 
   constructor(repository: Repository, branch: string, baseBranch: string) {
     this.#repository = repository;
@@ -78,8 +79,14 @@ export class Stage {
     return this;
   }
 
-  private getBranch(): string {
-    return this.#baseBranch;
+  private async getBaseBranch(): Promise<string> {
+    if (this.#_cachedBasedBranch) {
+      return this.#_cachedBasedBranch;
+    }
+    const existing = await this.#repository.getBranch(this.#branch);
+    const baseBranch = existing !== null ? this.#branch : this.#baseBranch;
+    this.#_cachedBasedBranch = baseBranch;
+    return baseBranch;
   }
 
   private createBlob(content: Buffer): Promise<GitObject> {
@@ -157,8 +164,9 @@ export class Stage {
             pred = ObjectPredicates.pathEquals(predicate);
           }
 
+          const baseBranch = await this.getBaseBranch();
           const files = await this.#repository.getFilesWithContent(
-            this.getBranch(),
+            baseBranch,
             pred
           );
           if (files.length === 1 && files[0].content) {
@@ -190,8 +198,9 @@ export class Stage {
     this.#changeSets.push({
       changes: [
         async (changes) => {
+          const baseBranch = await this.getBaseBranch();
           const files = await this.#repository.getFilesWithContent(
-            this.getBranch(),
+            baseBranch,
             predicate
           );
           const applicatorPromises = files
@@ -261,8 +270,9 @@ export class Stage {
   }
 
   public async commit(message: string): Promise<CommitCompletion> {
+    const baseBranch = await this.getBaseBranch();
     const latestCommit = await this.#repository.getLatestCommitToBranch(
-      this.getBranch()
+      baseBranch
     );
     const latestTree = await this.#repository.getTree(latestCommit);
 

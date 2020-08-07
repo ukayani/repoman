@@ -4,9 +4,9 @@
 
 import axios, { AxiosError, AxiosInstance } from "axios";
 import { Commit, Repository } from "./repository";
-import { Checkout } from "./checkout";
 import { Links } from "./links";
 import { Config } from "./config";
+import { Stage } from "./stage";
 
 function createClient(token: string): AxiosInstance {
   const client = axios.create({
@@ -88,8 +88,8 @@ export class GitHubRepository {
    * @param branch
    * @param startPoint
    */
-  checkout(branch: string, startPoint?: string): Checkout {
-    return this.#repository.checkout(branch, startPoint);
+  checkout(branch: string, baseBranch?: string): Stage {
+    return this.#repository.checkout(branch, baseBranch);
   }
 
   /**
