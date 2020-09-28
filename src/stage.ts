@@ -145,11 +145,11 @@ export class Stage {
     return this;
   }
 
-  public modifyFile(path: string, modifier: ContentModifier);
+  public modifyFile(path: string, modifier: ContentModifier): Stage;
   public modifyFile(
     predicate: Predicate<TreeObject>,
     modifier: ContentModifier
-  );
+  ): Stage;
   public modifyFile(
     predicate: Predicate<TreeObject> | string,
     modifier: ContentModifier
