@@ -42,6 +42,13 @@ For details on usage and examples visit the docs page:
 $ npm i @ukayani/repoman --save
 ```
 
+## Github Token
+
+A GitHub token can be configured via:
+- a `GITHUB_TOKEN` environment variable 
+- a `config.yaml` file in the working directory with a `token` key
+- the constructor of the GitHub class `new GitHub(token)`
+
 ## Sample Code
 
 Below is an automation which reads a list of repos from a file
